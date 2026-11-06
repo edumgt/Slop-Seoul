@@ -1,11 +1,114 @@
-<div align="center">
+# Slop Seoul · 테헤란로 (Teheran-ro)
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+> **[mrdoob/slop-newyork](https://github.com/mrdoob/slop-newyork)** 소스를 기반으로, 대한민국 서울의 대표적인 금융·IT 밸리이자 마천루 중심축인 **강남 테헤란로(Teheran-ro)** 거리와 스카이라인을 3D 실시간 그래픽스로 구현한 인터랙티브 도심 시뮬레이션입니다.
 
-  <h1>Built with AI Studio</h2>
+[three.js](https://threejs.org/)의 **WebGPURenderer**와 **TSL(Three Shading Language)**(WebGL2 폴백 지원)을 활용하여, 11만 개 이상의 빌딩이 밀집된 거대 도심을 웹 브라우저에서 60 FPS로 탐험할 수 있습니다.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+---
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## 🏙️ 서울 테헤란로 거리 묘사 및 구현 특징 (Features)
 
-</div>
+본 프로젝트는 뉴욕 맨해튼 격자망 및 건축물 엔진을 서울 강남 테헤란로의 실제 도로 체계, 랜드마크, 상권 및 대중교통 인프라에 맞춰 고도화했습니다.
+
+### 1. 테헤란로 중심 도로망 및 격자 체계
+* **주요 간선도로 축**:
+  * **테헤란로 (Teheran-ro)**: 강남역에서 역삼역, 선릉역, 삼성역(영동대로)까지 이어지는 대한민국 대표 비즈니스·테크웨이
+  * **강남대로 (Gangnam-daero · 강남역)**: 서초와 강남을 잇는 최대 번화가
+  * **논현로 (Nonhyeon-ro · 역삼역)** / **언주로 (Eonju-ro · 테헤란로 중심)**
+  * **선릉로 (Seolleung-ro · 선릉역)**: 선정릉 도심 문화재 권역과 연결되는 금융·상업 축
+  * **삼성로 (Samseong-ro · 포스코사거리)**: 포스코센터 및 대치동 학원가 연계 도로
+  * **영동대로 (Yeongdong-daero · 삼성역 & 코엑스)**: 코엑스 및 MICE 특구 광폭 대로
+  * 도산대로, 역삼로, 선릉북로, 테헤란로 IT타운길, 탄천동로, 올림픽로 등 주변 도로망 유기적 연결
+
+### 2. 강남 주요 랜드마크 및 빌딩 숲
+* **강남파이낸스센터 (GFC)**: 역삼역의 상징적인 초고층 오피스 타워
+* **한국종합무역센터 (Trade Tower)**: 삼성동 코엑스를 대표하는 고유의 스텝 형태 마천루
+* **코엑스 (COEX) & K-POP 스퀘어**: 초대형 곡면 옥외 전광판 미디어 아트
+* **파르나스타워 (Parnas Tower)**: 삼성역 인터컨티넨탈 호텔 권역의 현대적 초고층 빌딩
+* **강남역 GT타워 (GT Tower)**: 유려한 파도형 곡면 글래스 파사드
+* **포스코센터 (POSCO Center)**: 포스코사거리의 철강·금융 본산
+* **선정릉 (선릉·정릉)**: 강남 한복판의 세계문화유산 도심 왕릉 숲 공원 및 봉은사
+
+### 3. 실사 기반 거리 디테일 (Street Details & Photographic Storefronts)
+* **실제 한국 도로명 표지판**:
+  * 파란색 규격 바탕의 한글·영문 병기 도로명판 (`테헤란로 · Teheran-ro`, `강남대로`, `영동대로` 등)
+* **서울 지하철 2호선 인프라**:
+  * 역 출입구 및 초록색 순환선 폴사인 (`② 강남역`, `② 역삼역`, `② 선릉역`, `② 삼성역`)
+* **실제 상가 브랜드 고해상도 포토 텍스처 (Storefront Atlas)**:
+  * 1층 보행자 눈높이에 실제 테헤란로 주요 프랜차이즈 상가 실사 텍스처 적용
+  * **스타벅스 테헤란로점 (Starbucks Coffee)**
+  * **올리브영 강남타운점 (Olive Young)**
+  * **파리바게뜨 (Paris Baguette)**
+  * **투썸플레이스 (A Twosome Place)**
+  * **GS25 24시 편의점**
+  * 강남 온누리 약국, 강남 메디컬 약국, 강남 원조 분식 등 실감 나는 한국식 간판
+  * 야간 시간대 브랜드 고유 조명색(스타벅스 에메랄드, 올리브영 라임, GS25 블루 등) 발광(Emissive) 표현
+* **코엑스 & 영동대로 미디어 스퀘어 전광판**:
+  * 실시간 테헤란로 교통정보 및 날씨 안내 (YTN 뉴스 24 스타일)
+  * K-POP 스퀘어 미디어 파사드 및 디지털 사이니지 애니메이션
+
+### 4. 서울 대중교통 및 이동 수단 (Vehicles)
+1. **도보 (Foot, 1)**: 보도블록, 횡단보도, 지하철역 출입구를 걸으며 눈높이에서 테헤란로 체험
+2. **서울 택시 (Seoul Taxi, 2)**:
+   * 서울 특유의 꽃담황토색(주황) 차체, '31바 4820' 서울 번호판, '서울택시' 캡 라이트 탑재
+3. **따릉이 (Seoul Public Bike, 3)**:
+   * 서울시 공공자전거 특유의 화이트/그린 프레임
+4. **헬리콥터 (Helicopter, 4)**:
+   * 테헤란로 빌딩 숲과 멀리 한강, 잠실 롯데월드타워 방면까지 조망하는 항공 뷰
+* **실제 노선 기반 서울 버스 트래픽**:
+  * 파란색 간선버스 (360번: 송파 ↔ 강남역, 740번: 공덕역 ↔ 삼성역, 146번: 노원 ↔ 역삼역, 341번)
+  * 빨간색 광역버스 (9408번: 분당 ↔ 테헤란로, 9711번: 일산 ↔ 양재역)
+  * 초록색 지선/마을버스 (강남07번: 수서역 ↔ 코엑스)
+  * 심야 올빼미 버스 (N13번: 강남 ↔ 종로)
+
+### 5. 서울의 4대 시간대 및 분위기 (Atmosphere)
+* **노을 (Sunset)**: 빌딩 유리창에 반사되는 붉은 석양
+* **한낮 (Midday)**: 맑은 하늘 아래 투명한 테헤란로 도심 스카이라인
+* **매직아워 (Golden Hour)**: 도시의 빌딩 조명이 켜지기 시작하는 몽환적인 저녁빛
+* **야경 (Night)**: 수만 개 빌딩 창문과 네온사인, 자동차 헤드라이트/테일라이트가 수놓는 강남 불야성
+
+---
+
+## 🛠️ 기술 스택 (Tech Stack)
+
+* **Rendering Engine**: [three.js](https://threejs.org/) (r187)
+  * `WebGPURenderer` (최신 WebGPU 지원 환경)
+  * `WebGL2Backend` (미지원 브라우저 자동 폴백 지원)
+  * `TSL (Three Shading Language)` 기반 절차적 셰이더 & 머티리얼 파이프라인
+* **Language & Runtime**: TypeScript, Node.js (v22+)
+* **Server**: Express (포트 3000, 정적 파일 서빙 및 API 프록시)
+* **Build & Dev Tooling**: Vite, tsx, Tailwind CSS
+* **Test Suite**: Node.js 내장 테스트 러너 (`node:test`, 217개 단위 테스트 100% 통과)
+
+---
+
+## 🚀 로컬 실행 방법 (Getting Started)
+
+### 사전 요구사항
+* Node.js v20 이상
+* 최신 크롬(Chrome), 엣지(Edge) 등 WebGPU 또는 WebGL2 지원 브라우저
+
+### 설치 및 구동
+```bash
+# 저장소 클론 후 의존성 설치
+npm install
+
+# 개발 서버 시작 (http://localhost:3000)
+npm run dev
+
+# 프로덕션 빌드
+npm run build
+
+# 단위 테스트 실행
+npm test
+```
+
+---
+
+## 📜 크레딧 및 라이선스 (Credits & License)
+
+* **기반 소스코드 (Base Engine)**:
+  * 본 프로젝트는 Ricardo Cabello([@mrdoob](https://github.com/mrdoob))의 [slop-newyork](https://github.com/mrdoob/slop-newyork) 소스코드를 기반으로 테헤란로 배경 및 한국어 실사 디테일로 재구성(Remix)되었습니다.
+  * 원작 라이선스: [MIT License](LICENSE)
+* **도시 지리 데이터**:
+  * NYC Open Data, MTA, OpenStreetMap 기여자(ODbL) 및 서울 오픈 데이터 레퍼런스.

@@ -1,0 +1,8 @@
+{
+  "name": "Slop Seoul - Teheran-ro (서울 테헤란로)",
+  "description": "Three.js WebGPU 및 TSL 셰이더로 구현된 서울 강남 테헤란로 3D 시뮬레이션. 강남역부터 역삼, 선릉, 삼성역 코엑스까지 테헤란로 빌딩 숲을 도보, 서울 택시, 따릉이, 헬리콥터로 탐험하세요.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
