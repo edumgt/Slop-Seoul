@@ -454,6 +454,50 @@ body.hud-minimized .toolbar > :not(#btn-toggle-hud) {
   opacity: 1;
 }
 
+.weather-switch {
+  display: flex;
+  gap: 2px;
+}
+
+.weather-btn {
+  height: 36px;
+  padding: 0 9px;
+  border-radius: var(--r-ctl);
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  color: var(--text-2);
+  transition: background-color 0.2s ease, color 0.2s ease, gap 0.35s var(--ease-out), padding 0.35s var(--ease-out);
+}
+
+.weather-btn:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.weather-btn .seg-label {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  transition: max-width 0.4s var(--ease-out), opacity 0.25s ease;
+}
+
+.weather-btn.active,
+.weather-btn.active:hover {
+  gap: 7px;
+  padding: 0 12px 0 10px;
+  background: var(--text);
+  color: #121314;
+}
+
+.weather-btn.active .seg-label {
+  max-width: 120px;
+  opacity: 1;
+}
+
 .tool-btn {
   height: 36px;
   padding: 0 11px;
@@ -941,6 +985,47 @@ body[data-mode='helicopter'] .gauge-alt {
   transition: transform 0.25s linear;
 }
 
+.gauge-traffic {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.traffic-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #ff4d4f;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.traffic-dot.heavy {
+  background: #ff4d4f;
+  box-shadow: 0 0 6px rgba(255, 77, 79, 0.7);
+}
+
+.traffic-dot.busy {
+  background: #faad14;
+  box-shadow: 0 0 6px rgba(250, 173, 20, 0.7);
+}
+
+.traffic-dot.moderate {
+  background: #52c41a;
+  box-shadow: 0 0 6px rgba(82, 196, 26, 0.7);
+}
+
+.traffic-dot.light {
+  background: #1890ff;
+  box-shadow: 0 0 6px rgba(24, 144, 255, 0.7);
+}
+
 .camera-switch {
   display: flex;
   align-items: center;
@@ -1283,8 +1368,10 @@ body[data-mode='helicopter'] .gauge-alt {
 }
 
 @media (max-width: 620px) {
-  .time-btn.active .seg-label { display: none; }
-  .time-btn.active { padding: 0 9px; gap: 0; }
+  .time-btn.active .seg-label,
+  .weather-btn.active .seg-label { display: none; }
+  .time-btn.active,
+  .weather-btn.active { padding: 0 9px; gap: 0; }
   .radar { display: none; }
   .hud-bottom-right { bottom: calc(var(--edge) + 64px); }
   .gauge { display: none; }

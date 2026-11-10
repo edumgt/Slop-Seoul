@@ -69,6 +69,7 @@
   <link rel="modulepreload" href="./js/audio-sources.js" />
   <link rel="modulepreload" href="./js/audio-acoustics.js" />
   <link rel="modulepreload" href="./js/audio-system.js" />
+  <link rel="modulepreload" href="./js/weather-system.js" />
   <link rel="modulepreload" href="./js/main.js" />
   <script type="module" src="./js/main.js"></script>
   <!-- Inter (UI) & Overpass (street-name signs) -->
@@ -106,6 +107,9 @@
       <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m20 20-4.6-4.6"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/></symbol>
+      <symbol id="i-cloud-fog" viewBox="0 0 24 24"><path d="M4 14.8A4.2 4.2 0 0 1 7.8 10a5.5 5.5 0 0 1 10.4 1.5 3.8 3.8 0 0 1 1.8 7.3H4.5"/><path d="M3 18.5h18M6 21.5h12"/></symbol>
+      <symbol id="i-cloud-rain" viewBox="0 0 24 24"><path d="M4 14.8A4.2 4.2 0 0 1 7.8 10a5.5 5.5 0 0 1 10.4 1.5 3.8 3.8 0 0 1 1.8 7.3H4.5"/><path d="m8 18-1.5 3.5M12 18l-1.5 3.5M16 18l-1.5 3.5"/></symbol>
+      <symbol id="i-cloud-downpour" viewBox="0 0 24 24"><path d="M4 13.8A4.2 4.2 0 0 1 7.8 9a5.5 5.5 0 0 1 10.4 1.5 3.8 3.8 0 0 1 1.8 7.3H4.5"/><path d="m7 16.5-2 5M11 16.5-2 5M15 16.5-2 5M19 16.5-2 5"/></symbol>
     </defs>
   </svg>
 
@@ -150,6 +154,21 @@
         </button>
         <button id="time-midnight" class="time-btn" data-time="midnight" type="button" title="강남 야경 (Night 23:00)">
           <svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg><span class="seg-label">야경</span>
+        </button>
+      </div>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <div class="weather-switch" role="group" aria-label="실시간 날씨 선택">
+        <button id="weather-clear" class="weather-btn active" data-weather="clear" type="button" title="맑음 (Clear Sky)">
+          <svg class="icon" aria-hidden="true"><use href="#i-sun"/></svg><span class="seg-label">맑음</span>
+        </button>
+        <button id="weather-fog" class="weather-btn" data-weather="fog" type="button" title="안개 (City Fog / Mist)">
+          <svg class="icon" aria-hidden="true"><use href="#i-cloud-fog"/></svg><span class="seg-label">안개</span>
+        </button>
+        <button id="weather-rain" class="weather-btn" data-weather="rain" type="button" title="비 (Light Rain)">
+          <svg class="icon" aria-hidden="true"><use href="#i-cloud-rain"/></svg><span class="seg-label">비</span>
+        </button>
+        <button id="weather-downpour" class="weather-btn" data-weather="downpour" type="button" title="폭우 (Heavy Downpour)">
+          <svg class="icon" aria-hidden="true"><use href="#i-cloud-downpour"/></svg><span class="seg-label">폭우</span>
         </button>
       </div>
       <span class="toolbar-divider" aria-hidden="true"></span>
@@ -222,6 +241,10 @@
         </div>
         <div class="gauge-speed"><span id="hud-speed">0</span><span class="gauge-unit">km/h</span></div>
         <div class="gauge-meter" aria-hidden="true"><span id="hud-speed-meter"></span></div>
+        <div class="gauge-traffic" id="hud-traffic-info" title="테헤란로 실시간 교통 밀도 및 정체 수준">
+          <span class="traffic-dot heavy" id="hud-traffic-dot"></span>
+          <span id="hud-traffic-label">테헤란로 정체 심각 (18km/h)</span>
+        </div>
       </div>
       <div id="camera-switch" class="camera-switch">
         <button id="cam-prev" class="icon-btn" type="button" title="이전 카메라" aria-label="이전 카메라">

@@ -299,4 +299,4 @@ class LightingSystem {
   }
 }
 
-export { LightingSystem };
+export { LightingSystem, TIME_PRESETS };

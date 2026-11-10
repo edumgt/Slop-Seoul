@@ -19,6 +19,7 @@ import { LightingSystem } from './lighting.js';
 import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
+import { WeatherSystem } from './weather-system.js';
 
 // Application setup, shader warm-up and frame loop.
 
@@ -108,6 +109,7 @@ async function initApp() {
   await showLoadingStage('Creating sky and environment lighting...', 'lighting');
   const scene = new THREE.Scene();
   const lightingSystem = new LightingSystem(scene, renderer);
+  const weatherSystem = new WeatherSystem(scene, lightingSystem);
   markInit('lighting');
 
   // 3. Build Manhattan Geography, Iconic Landmarks, Blocks, Street Details & Traffic
@@ -206,6 +208,7 @@ async function initApp() {
   const dynamicRoots = [
     trafficSystem.group,
     highwayTraffic.group,
+    weatherSystem.group,
     scene.getObjectByName('StoreClusteredLights'),
     scene.getObjectByName('StreetClusteredLights'),
     ...Object.values(controllerManager.entities).map((entity) => entity.mesh),
@@ -264,6 +267,7 @@ async function initApp() {
   const modeButtons = document.querySelectorAll('[data-mode]');
   const cameraButtons = document.querySelectorAll('[data-camera]');
   const timeButtons = document.querySelectorAll('[data-time]');
+  const weatherButtons = document.querySelectorAll('[data-weather]');
   const teleportButtons = document.querySelectorAll('[data-teleport]');
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
   const modeSwitch = document.getElementById('mode-switch');
@@ -277,6 +281,8 @@ async function initApp() {
   const elAltitude = document.getElementById('hud-altitude');
   const elLocation = document.getElementById('hud-location');
   const elControlsHint = document.getElementById('hud-controls-hint');
+  const elTrafficLabel = document.getElementById('hud-traffic-label');
+  const elTrafficDot = document.getElementById('hud-traffic-dot');
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
     onCycleMode: (step) => {
       const modes = ['person', 'car', 'cyclist', 'helicopter'];
@@ -360,9 +366,22 @@ async function initApp() {
     selectCamera(CAMERA_PRESETS[(idx + step + n) % n].id, true);
   }
 
+  function selectWeather(weatherId) {
+    weatherSystem.setWeather(weatherId);
+    weatherButtons.forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute('data-weather') === weatherId);
+    });
+  }
+
   function selectTime(timeId) {
     lightingSystem.applyPreset(timeId);
     colorGrade.applyPreset(lightingSystem.activePresetId);
+    if (trafficSystem?.setTimeOfDay) {
+      trafficSystem.setTimeOfDay(timeId);
+    }
+    if (weatherSystem) {
+      weatherSystem.applyWeather(weatherSystem.getWeather(), timeId);
+    }
     timeButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-time') === timeId);
     });
@@ -427,6 +446,12 @@ async function initApp() {
   timeButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       selectTime(btn.getAttribute('data-time'));
+    });
+  });
+
+  weatherButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      selectWeather(btn.getAttribute('data-weather'));
     });
   });
 
@@ -709,7 +734,8 @@ async function initApp() {
       cameraSystem.currentPos,
       controllerManager.getActiveEntity(),
       controllerManager.activeMode,
-      cameraSystem.camera
+      cameraSystem.camera,
+      lightingSystem.activePresetId
     );
     highwayTraffic.update(dt, cameraSystem.camera, controllerManager.getActiveEntity(), controllerManager.activeMode);
     if (!document.hidden && now >= nextPlayerSave) {
@@ -721,6 +747,7 @@ async function initApp() {
     if (cityBlocks.updateLights) cityBlocks.updateLights(cameraSystem.camera);
     if (streetDetails.update) streetDetails.update(cameraSystem.camera);
     lightingSystem.update(cameraSystem.currentPos);
+    weatherSystem.update(dt, elapsed, cameraSystem.camera, cameraSystem.currentPos, lightingSystem.activePresetId);
     mapSystem.update();
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
@@ -786,6 +813,13 @@ async function initApp() {
       if (elSpeed) elSpeed.textContent = String(kmh);
       if (elSpeedMeter) elSpeedMeter.style.transform = `scaleX(${Math.min(1, kmh / (topSpeedKmh[mode] || 130))})`;
       if (elAltitude) elAltitude.textContent = altM.toLocaleString('ko-KR');
+      if (elTrafficLabel && trafficSystem?.getCongestionStats) {
+        const stats = trafficSystem.getCongestionStats();
+        elTrafficLabel.textContent = `${stats.statusKo} · ${stats.activeVehicles}대 (평균 ${stats.teheranSpeedKmh}km/h)`;
+        if (elTrafficDot) {
+          elTrafficDot.className = `traffic-dot ${stats.congestionLevel}`;
+        }
+      }
       // The street corner of the player on the follow cameras, of the camera itself on the scenic ones
       const where = cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos;
       renderLocation(getLocationLabel(where.x, where.z));

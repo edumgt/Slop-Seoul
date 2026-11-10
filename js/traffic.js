@@ -104,6 +104,87 @@ function createBusDestinationTexture() {
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
+// =========================================================================
+// DYNAMIC TEHERAN-RO TRAFFIC CONGESTION & DENSITY PROFILES
+// =========================================================================
+// Realistic Seoul Teheran-ro traffic profiles by time-of-day:
+// - golden (18:30): Evening rush hour peak jam (퇴근길 극심한 정체, density 100%, avg ~18 km/h)
+// - midday (13:00): Regular business traffic flow (한낮 정상 소통, density 75%, avg ~42 km/h)
+// - twilight (20:00): Evening dining & entertainment movement (저녁 상권 이동 서행, density 88%, avg ~32 km/h)
+// - midnight (23:30): Late night swift transit & speeding taxis (심야 고속 소통 원활, density 40%, avg ~60 km/h)
+const TIME_CONGESTION_PROFILES = {
+  golden: {
+    id: 'golden',
+    nameKo: '퇴근길 노을 (18:30)',
+    congestionLevel: 'heavy',
+    congestionIndex: 0.92,
+    densityRatio: 1.0,
+    speedMultiplier: 0.48,
+    teheranSpeedMult: 0.38,
+    standstillGap: 1.2,
+    timeHeadway: 1.8,
+    accelFactor: 0.7,
+    statusKo: '정체 심각',
+    label: '테헤란로 퇴근길 정체 심각 (평균 18km/h)'
+  },
+  midday: {
+    id: 'midday',
+    nameKo: '화창한 한낮 (13:00)',
+    congestionLevel: 'moderate',
+    congestionIndex: 0.48,
+    densityRatio: 0.75,
+    speedMultiplier: 0.92,
+    teheranSpeedMult: 0.85,
+    standstillGap: 2.0,
+    timeHeadway: 1.3,
+    accelFactor: 1.0,
+    statusKo: '원활',
+    label: '테헤란로 주간 통행 원활 (평균 42km/h)'
+  },
+  twilight: {
+    id: 'twilight',
+    nameKo: '매직아워 저녁 (20:00)',
+    congestionLevel: 'busy',
+    congestionIndex: 0.74,
+    densityRatio: 0.88,
+    speedMultiplier: 0.72,
+    teheranSpeedMult: 0.62,
+    standstillGap: 1.5,
+    timeHeadway: 1.5,
+    accelFactor: 0.85,
+    statusKo: '서행',
+    label: '테헤란로 저녁 서행 (평균 32km/h)'
+  },
+  midnight: {
+    id: 'midnight',
+    nameKo: '심야 강남 야경 (23:30)',
+    congestionLevel: 'light',
+    congestionIndex: 0.18,
+    densityRatio: 0.40,
+    speedMultiplier: 1.35,
+    teheranSpeedMult: 1.30,
+    standstillGap: 2.5,
+    timeHeadway: 1.0,
+    accelFactor: 1.3,
+    statusKo: '매우 원활',
+    label: '테헤란로 심야 소통 원활 (평균 60km/h)'
+  }
+};
+
+function getCongestionProfile(timeId) {
+  return TIME_CONGESTION_PROFILES[timeId] || TIME_CONGESTION_PROFILES.golden;
+}
+
+function isTeheranRoCoordinate(x, z) {
+  // Teheran-ro corridor: Street 42 centered at z ~ 0.3 extending east-west between Gangnam Stn (x ~ -1000) and Samseong Stn (x ~ 650)
+  return Math.abs(z) < 55 && x >= -1400 && x <= 1000;
+}
+
+function calculateTargetActiveCount(totalPool = 212, timeId = 'golden') {
+  const profile = getCongestionProfile(timeId);
+  return Math.round(totalPool * profile.densityRatio);
+}
+
 function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   const group = new THREE.Group();
   group.name = 'ManhattanTrafficAndPedestrians';
@@ -166,7 +247,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   // =========================================================================
   function createVehicle(bus, half, halfWidth, axle, driver, v0) {
     return {
-      bus, half, halfWidth, axle, driver, v0,
+      bus, half, halfWidth, axle, driver, v0, baseV0: v0, baseDriver: driver,
       edge: null, lane: 0, s: 0, speed: 0, acc: 0, gap: Infinity, leaderSpeed: 0,
       move: null, out: 0, conn: null, cs: 0, trail: null, commit: null, claimed: false, yielding: false, yieldAt: 0,
       wait: 0, laneTimer: Math.random() * 0.5,
@@ -1534,7 +1615,18 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     v.commit = null;
     v.yielding = false;
     v.wait = 0;
-    v.speed = v.v0 * 0.5;
+    const midZ = e.sz + e.dz * s;
+    const onTeheran = isTeheranRoCoordinate(focusX, midZ) || Math.abs(midZ) < 55;
+    const spdMult = onTeheran ? currentCongestionProfile.teheranSpeedMult : currentCongestionProfile.speedMultiplier;
+    v.v0 = (v.baseV0 || v.v0) * spdMult;
+    const bd = v.baseDriver || v.driver;
+    v.driver = {
+      ...bd,
+      a: bd.a * currentCongestionProfile.accelFactor,
+      s0: currentCongestionProfile.standstillGap,
+      T: currentCongestionProfile.timeHeadway
+    };
+    v.speed = v.v0 * (currentCongestionProfile.congestionLevel === 'heavy' ? 0.35 : 0.6);
     v.acc = 0;
     v.impactTime = 0;
     v.dl = v.dlv = 0;
@@ -1875,8 +1967,81 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   let lastFocusX = Infinity;
   let lastFocusZ = Infinity;
   let vehicleCursor = 0;
+  let activeTimeSetting = 'golden';
+  let currentCongestionProfile = TIME_CONGESTION_PROFILES.golden;
 
-  function update(dt, elapsed, focusPos = null, playerEntity = null, activeMode = 'car', camera = null) {
+  function applyCongestionToFleet() {
+    const prof = currentCongestionProfile;
+    for (let i = 0; i < vehicles.length; i++) {
+      const v = vehicles[i];
+      const onTeheran = isTeheranRoCoordinate(v.x, v.z) || (v.edge && Math.abs(v.edge.sz) < 55);
+      const spdMult = onTeheran ? prof.teheranSpeedMult : prof.speedMultiplier;
+      v.v0 = (v.baseV0 || v.v0) * spdMult;
+      const bd = v.baseDriver || v.driver;
+      v.driver = {
+        ...bd,
+        a: bd.a * prof.accelFactor,
+        s0: prof.standstillGap,
+        T: prof.timeHeadway
+      };
+      if (v.speed > v.v0 * 1.3) {
+        v.speed = Math.max(v.v0, v.speed * 0.92);
+      }
+    }
+  }
+
+  function setTimeOfDay(timeId) {
+    if (TIME_CONGESTION_PROFILES[timeId] && activeTimeSetting !== timeId) {
+      activeTimeSetting = timeId;
+      currentCongestionProfile = TIME_CONGESTION_PROFILES[timeId];
+      applyCongestionToFleet();
+    }
+  }
+
+  function getTimeOfDay() {
+    return activeTimeSetting;
+  }
+
+  function getCongestionStats() {
+    let active = 0;
+    let teheranCount = 0;
+    let totalSpeed = 0;
+    let teheranSpeed = 0;
+
+    for (let i = 0; i < vehicles.length; i++) {
+      const v = vehicles[i];
+      if (!v.edge) continue;
+      active++;
+      const kmh = v.speed * 3.6;
+      totalSpeed += kmh;
+      if (isTeheranRoCoordinate(v.x, v.z) || (v.edge && Math.abs(v.edge.sz) < 55)) {
+        teheranCount++;
+        teheranSpeed += kmh;
+      }
+    }
+
+    const avgSpeed = active > 0 ? totalSpeed / active : 0;
+    const avgTeheranSpeed = teheranCount > 0 ? teheranSpeed / teheranCount : avgSpeed;
+
+    return {
+      timeId: activeTimeSetting,
+      nameKo: currentCongestionProfile.nameKo,
+      congestionLevel: currentCongestionProfile.congestionLevel,
+      congestionIndex: currentCongestionProfile.congestionIndex,
+      activeVehicles: active,
+      targetVehicles: Math.round(vehicles.length * currentCongestionProfile.densityRatio),
+      totalPool: vehicles.length,
+      averageSpeedKmh: Math.round(avgSpeed),
+      teheranSpeedKmh: Math.round(avgTeheranSpeed),
+      statusKo: currentCongestionProfile.statusKo,
+      label: currentCongestionProfile.label
+    };
+  }
+
+  function update(dt, elapsed, focusPos = null, playerEntity = null, activeMode = 'car', camera = null, timeOfDay = null) {
+    if (timeOfDay && timeOfDay !== activeTimeSetting && TIME_CONGESTION_PROFILES[timeOfDay]) {
+      setTimeOfDay(timeOfDay);
+    }
     clock = elapsed;
     avePhase = signalPhase(elapsed, true);
     stPhase = signalPhase(elapsed, false);
@@ -1907,16 +2072,34 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     player.halfL = activeMode === 'cyclist' ? 0.85 : activeMode === 'person' ? 0.32 : 2.18;
 
     // 1. Cars & buses
-    // Limit attempted placements, not just successes, and rotate through the pool so an awkward location
-    // cannot monopolize a frame. Previous-frame lane lists protect spawn spacing; rebuild before driving.
-    let budget = jump ? vehicles.length : 4;
+    // Dynamic traffic density system: limit active vehicle count to target ratio for the selected time of day
+    const targetActiveCount = Math.round(vehicles.length * currentCongestionProfile.densityRatio);
+    let currentActiveCount = 0;
+    for (let i = 0; i < vehicles.length; i++) {
+      if (vehicles[i].edge) currentActiveCount++;
+    }
+
+    let budget = jump ? vehicles.length : (currentCongestionProfile.congestionLevel === 'heavy' ? 6 : 4);
     for (let scanned = 0; scanned < vehicles.length && budget > 0; scanned++) {
       const v = vehicles[vehicleCursor];
       vehicleCursor = (vehicleCursor + 1) % vehicles.length;
       const d = v.edge ? Math.hypot(v.x - focusX, v.z - focusZ) : Infinity;
       if (d <= (jump ? NEAR_RADIUS : VEHICLE_RADIUS)) continue;
-      budget--;
-      spawnVehicle(v, jump ? 0 : 100, NEAR_RADIUS, !jump);
+
+      // When over the density quota (e.g. after switching to midnight), retire distant vehicles smoothly
+      if (currentActiveCount >= targetActiveCount && v.edge) {
+        v.edge = null;
+        currentActiveCount--;
+        continue;
+      }
+
+      // If under quota, spawn replacement vehicle
+      if (currentActiveCount < targetActiveCount) {
+        budget--;
+        if (spawnVehicle(v, jump ? 0 : 100, NEAR_RADIUS, !jump)) {
+          currentActiveCount++;
+        }
+      }
     }
     buildOccupancy();
     for (const m of bodyMeshes) m.count = 0;
@@ -2012,6 +2195,10 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     group,
     update,
     setCollisionListener,
+    setTimeOfDay,
+    getTimeOfDay,
+    getCongestionStats,
+    TIME_CONGESTION_PROFILES,
     cars,
     buses,
     peds: pedestrianSystem.peds,
@@ -2465,4 +2652,11 @@ function createHighwayTraffic(scene, lanes) {
   return { group, update, cars, lanes };
 }
 
-export { createTrafficSystem, createHighwayTraffic };
+export {
+  createTrafficSystem,
+  createHighwayTraffic,
+  TIME_CONGESTION_PROFILES,
+  getCongestionProfile,
+  isTeheranRoCoordinate,
+  calculateTargetActiveCount
+};
