@@ -260,7 +260,9 @@ async function initApp() {
   // Roughness mip blur must not spread reflections back onto matte or nonreflective surfaces.
   const reflectionMask = scenePassMetalRough.r.greaterThan(0).select(smoothstep(maxSSRRoughness, 0.55, scenePassMetalRough.g), 0);
   const reflections = ssrPass.mul(reflectionMask);
-  const colorGrade = createPostProcessing(renderer, scenePassColor, reflections);
+  const colorGrade = createPostProcessing(renderer, scenePassColor, reflections, {
+    uLensRainIntensity: weatherSystem.uLensRainIntensity
+  });
   const renderPipeline = new THREE.RenderPipeline(renderer, colorGrade.outputNode);
 
   // 6. Wire UI Controls (Strictly using safe DOM APIs: textContent, classList, addEventListener)

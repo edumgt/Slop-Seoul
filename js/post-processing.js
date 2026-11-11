@@ -10,13 +10,17 @@ import {
   mix,
   min,
   max,
+  clamp,
   pow,
   smoothstep,
   length,
   screenUV,
-  screenSize
+  screenSize,
+  texture
 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+import { createLensRainOverlay } from './lens-rain.js';
+import { cityUniforms } from './tsl-materials.js';
 
 // Scene-linear color grading and lens bloom, composed in the existing final render pass.
 
@@ -29,7 +33,7 @@ const LOOKS = {
   midnight: { exposure: 1.04, contrast: 1.08, saturation: 1.06, balance: [0.985, 1.00, 1.035], bloom: 0.30, threshold: 1.00 }
 };
 
-function createPostProcessing(renderer, sceneColor, reflections) {
+function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   // Exposure is applied before bloom so its threshold follows the image's exposed brightness.
   // RenderPipeline performs ACES and the output color-space conversion exactly once, after this graph.
@@ -41,6 +45,10 @@ function createPostProcessing(renderer, sceneColor, reflections) {
   const balance = uniform(new THREE.Vector3(1, 1, 1));
   const exposed = max(sceneColor.rgb.add(reflections.rgb), vec3(0)).mul(exposure).mul(balance);
 
+  // Screen-space lens rain and splash overlay effect
+  const uLensRainIntensity = options?.uLensRainIntensity || uniform(float(0.0));
+  const lensRainOverlay = createLensRainOverlay(uLensRainIntensity);
+
   // Limit only bloom's peak radiance, scaling RGB together to retain neon and lamp colors.
   // The original HDR image keeps its full range for the tone mapper's highlight shoulder.
   const peak = max(max(exposed.r, exposed.g), exposed.b);
@@ -51,6 +59,28 @@ function createPostProcessing(renderer, sceneColor, reflections) {
 
   const outputNode = Fn(() => {
     const color = exposed.add(bloomPass.rgb).toVar();
+
+    // Screen-space camera lens raindrops & splashes overlay (vec4: xy=normal, z=mask, w=highlight)
+    const rain = lensRainOverlay();
+    const refractOffset = rain.xy.mul(float(0.038));
+    const distortedUV = clamp(screenUV.add(refractOffset), vec2(0.001), vec2(0.999));
+    const sceneRefracted = texture(sceneColor, distortedUV);
+    const refractedExposed = max(sceneRefracted.rgb.add(reflections.rgb), vec3(0))
+      .mul(exposure)
+      .mul(balance)
+      .add(bloomPass.rgb);
+
+    // Refractive optical displacement
+    color.assign(mix(color, refractedExposed, rain.z));
+
+    // Meniscus dark boundary ring (Fresnel total internal reflection border)
+    const meniscus = rain.z.mul(smoothstep(0.05, 0.35, length(rain.xy)));
+    const darkRim = float(1.0).sub(meniscus.mul(0.35));
+    color.mulAssign(darkRim);
+
+    // Water specular bead highlight (glint from sky & neon city lights)
+    const skyGlint = mix(vec3(1.0), cityUniforms.uSkyHorizonColor, 0.4).add(vec3(0.5));
+    color.addAssign(skyGlint.mul(rain.w).mul(1.85));
     const luma = dot(color, vec3(0.2126, 0.7152, 0.0722)).toVar();
 
     // Gentle cool shadow / warm highlight separation; multiply rather than lifting the black level.

@@ -80,6 +80,11 @@
   * 최대 36,000개 빗줄기 파티클 + 2,800개 지상 수면 파문 링
   * 시야를 가리는 폭우 안개 및 짙은 먹구름(Cloud Coverage: 98%), 태양광 감쇠
   * 아스팔트 반사율 극대화 (Wetness: 1.0) 및 야간 도심 네온 반사 효과
+* **TSL 포스트 프로세싱 렌즈 물방울 & 스플래시 오버레이 (Screen-Space Lens Raindrops)**:
+  * '비' 또는 '폭우' 활성화 시 카메라 렌즈 표면에 맺히는 물방울, 미세 응결 비드, 중력 흘러내림(Trickle) 및 직격 충돌 파문(Splashes)을 TSL 셰이더로 실시간 시뮬레이션
+  * 구면 굴절 법선(Convex Lens Normal)을 통한 3D 도심 씬 광학 굴절 및 왜곡 디스플레이스먼트
+  * 내부 전반사(Fresnel Total Internal Reflection) 암부 메니스커스 림 및 하늘/도심 네온빛 스페큘러 글린트(Specular Bead Glint)
+  * '맑음' / '안개' 전환 시 렌즈 표면 물방울의 자연스러운 증발 및 페이드아웃 보간
 
 ### 7. 테헤란로 실시간 교통 밀도 시스템 (Dynamic Traffic Congestion)
 시간대별 테헤란로 실제 통행량 패턴을 실시간으로 시뮬레이션:
@@ -99,7 +104,7 @@
 * **Language & Runtime**: TypeScript, Node.js (v22+)
 * **Server**: Express (포트 3000, 정적 파일 서빙 및 API 프록시)
 * **Build & Dev Tooling**: Vite, tsx, Tailwind CSS
-* **Test Suite**: Node.js 내장 테스트 러너 (`node:test`, 231개 단위 테스트 100% 통과)
+* **Test Suite**: Node.js 내장 테스트 러너 (`node:test`, 236개 단위 테스트 100% 통과)
 
 ---
 

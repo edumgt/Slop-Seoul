@@ -40,6 +40,7 @@ const WEATHER_PRESETS = {
     rainIntensity: 0.0,
     rainDropCount: 0,
     splashCount: 0,
+    lensRainIntensity: 0.0,
     fogMult: 1.0,
     fogHeight: 900.0,
     wetnessTarget: 0.12,
@@ -59,6 +60,7 @@ const WEATHER_PRESETS = {
     rainIntensity: 0.0,
     rainDropCount: 0,
     splashCount: 0,
+    lensRainIntensity: 0.0,
     fogMult: 4.5,
     fogHeight: 160.0,
     wetnessTarget: 0.42,
@@ -78,6 +80,7 @@ const WEATHER_PRESETS = {
     rainIntensity: 0.45,
     rainDropCount: 16000,
     splashCount: 1200,
+    lensRainIntensity: 0.65,
     fogMult: 1.85,
     fogHeight: 480.0,
     wetnessTarget: 0.78,
@@ -97,6 +100,7 @@ const WEATHER_PRESETS = {
     rainIntensity: 1.0,
     rainDropCount: 36000,
     splashCount: 2800,
+    lensRainIntensity: 1.0,
     fogMult: 3.2,
     fogHeight: 260.0,
     wetnessTarget: 1.0,
@@ -192,6 +196,9 @@ class WeatherSystem {
     this.uCamPos = uniform(vec3(0, 0, 0));
     this.uRainParams = uniform(vec4(0, 46.0, 0.1, 0.05)); // x: intensity, y: fallSpeed, z: windX, w: windZ
     this.uBoxSize = uniform(vec3(85.0, 46.0, 85.0));
+    this.uLensRainIntensity = uniform(float(0.0));
+    this.targetLensRainIntensity = 0.0;
+    this.currentLensRainIntensity = 0.0;
 
     this.initRainParticles();
     this.initSplashParticles();
@@ -417,12 +424,21 @@ class WeatherSystem {
 
     // Road wetness & standing puddle reflections
     cityUniforms.uRoadWetness.value = fogParams.roadWetness;
+
+    // Lens rain intensity target
+    this.targetLensRainIntensity = w.lensRainIntensity !== undefined ? w.lensRainIntensity : (w.rainIntensity > 0 ? 0.65 : 0.0);
   }
 
   update(dt, elapsed, camera, focusPos, activePresetId) {
     if (camera) {
       this.uCamPos.value.copy(camera.position);
     }
+    const speed = Math.min(1.0, (dt || 0.016) * 2.5);
+    this.currentLensRainIntensity += (this.targetLensRainIntensity - this.currentLensRainIntensity) * speed;
+    if (Math.abs(this.targetLensRainIntensity - this.currentLensRainIntensity) < 0.001) {
+      this.currentLensRainIntensity = this.targetLensRainIntensity;
+    }
+    this.uLensRainIntensity.value = this.currentLensRainIntensity;
   }
 }
 
