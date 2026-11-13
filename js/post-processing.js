@@ -20,6 +20,7 @@ import {
 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { createLensRainOverlay } from './lens-rain.js';
+import { createScreenWeatherEffect } from './screen-weather.js';
 import { cityUniforms } from './tsl-materials.js';
 
 // Scene-linear color grading and lens bloom, composed in the existing final render pass.
@@ -45,9 +46,43 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
   const balance = uniform(new THREE.Vector3(1, 1, 1));
   const exposed = max(sceneColor.rgb.add(reflections.rgb), vec3(0)).mul(exposure).mul(balance);
 
-  // Screen-space lens rain and splash overlay effect
+  // Camera matrices for screen-space depth & normal reconstruction
+  const uCameraProjInverse = uniform(new THREE.Matrix4());
+  const uCameraWorldMatrix = uniform(new THREE.Matrix4());
+
+  function update(cam = options?.camera) {
+    if (!cam) return;
+    uCameraProjInverse.value.copy(cam.projectionMatrixInverse);
+    uCameraWorldMatrix.value.copy(cam.matrixWorld);
+  }
+  update(options?.camera);
+
+  // Dynamic screen-space weather uniforms (smoothly animated by WeatherSystem)
   const uLensRainIntensity = options?.uLensRainIntensity || uniform(float(0.0));
+  const uScreenFogShift = options?.uScreenFogShift || uniform(float(0.0));
+  const uScreenFogDensity = options?.uScreenFogDensity || uniform(float(0.0));
+  const uScreenFogHeight = options?.uScreenFogHeight || uniform(float(600.0));
+  const uSurfaceRippleIntensity = options?.uSurfaceRippleIntensity || uniform(float(0.0));
+  const uWeatherContrastShift = options?.uWeatherContrastShift || uniform(float(0.0));
+  const uWeatherSaturationShift = options?.uWeatherSaturationShift || uniform(float(0.0));
+  const uWeatherFogColor = options?.uWeatherFogColor || uniform(new THREE.Color(0xdcc5ae));
+
   const lensRainOverlay = createLensRainOverlay(uLensRainIntensity);
+
+  const hasDepthInputs = Boolean(options?.sceneDepth && options?.sceneNormal && options?.sceneMetalRough);
+  const screenWeatherEffect = hasDepthInputs
+    ? createScreenWeatherEffect({
+        sceneDepth: options.sceneDepth,
+        sceneNormal: options.sceneNormal,
+        sceneMetalRough: options.sceneMetalRough,
+        uCameraProjInverse,
+        uCameraWorldMatrix,
+        uSurfaceRippleIntensity,
+        uScreenFogShift,
+        uScreenFogDensity,
+        uScreenFogHeight
+      })
+    : null;
 
   // Limit only bloom's peak radiance, scaling RGB together to retain neon and lamp colors.
   // The original HDR image keeps its full range for the tone mapper's highlight shoulder.
@@ -60,7 +95,34 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
   const outputNode = Fn(() => {
     const color = exposed.add(bloomPass.rgb).toVar();
 
-    // Screen-space camera lens raindrops & splashes overlay (vec4: xy=normal, z=mask, w=highlight)
+    // 1. Screen-space surface rain ripples & subtle depth fog shift
+    const fogAmount = float(0.0).toVar();
+    if (screenWeatherEffect) {
+      const sw = screenWeatherEffect();
+      const rippleGlint = sw.x;
+      const rippleShift = sw.y;
+      fogAmount.assign(sw.z);
+
+      // Subtle refractive ripple distortion on wet pavement/rooftop reflections
+      const rippleUvOffset = vec2(rippleShift.mul(0.0045), rippleShift.mul(0.0028));
+      const rippleUV = clamp(screenUV.add(rippleUvOffset), vec2(0.001), vec2(0.999));
+      const rippleSample = texture(sceneColor, rippleUV);
+      const rippleRefracted = max(rippleSample.rgb.add(reflections.rgb), vec3(0))
+        .mul(exposure)
+        .mul(balance)
+        .add(bloomPass.rgb);
+      const rippleBlend = clamp(rippleGlint.mul(0.55), 0.0, 0.65);
+      color.assign(mix(color, rippleRefracted, rippleBlend));
+
+      // Specular ripple ring sheen reflecting sky & urban lights
+      const rippleSpec = mix(vec3(0.68, 0.78, 0.90), cityUniforms.uSkyHorizonColor, 0.45);
+      color.addAssign(rippleSpec.mul(rippleGlint).mul(0.38));
+
+      // Subtle screen-space fog density veil
+      color.assign(mix(color, uWeatherFogColor, fogAmount));
+    }
+
+    // 2. Screen-space camera lens raindrops & splashes overlay (vec4: xy=normal, z=mask, w=highlight)
     const rain = lensRainOverlay();
     const refractOffset = rain.xy.mul(float(0.038));
     const distortedUV = clamp(screenUV.add(refractOffset), vec2(0.001), vec2(0.999));
@@ -68,19 +130,23 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
     const refractedExposed = max(sceneRefracted.rgb.add(reflections.rgb), vec3(0))
       .mul(exposure)
       .mul(balance)
-      .add(bloomPass.rgb);
+      .add(bloomPass.rgb)
+      .toVar();
+    if (screenWeatherEffect) {
+      refractedExposed.assign(mix(refractedExposed, uWeatherFogColor, fogAmount));
+    }
 
     // Refractive optical displacement
     color.assign(mix(color, refractedExposed, rain.z));
 
     // Meniscus dark boundary ring (Fresnel total internal reflection border)
     const meniscus = rain.z.mul(smoothstep(0.05, 0.35, length(rain.xy)));
-    const darkRim = float(1.0).sub(meniscus.mul(0.35));
+    const darkRim = float(1.0).sub(meniscus.mul(0.32));
     color.mulAssign(darkRim);
 
-    // Water specular bead highlight (glint from sky & neon city lights)
-    const skyGlint = mix(vec3(1.0), cityUniforms.uSkyHorizonColor, 0.4).add(vec3(0.5));
-    color.addAssign(skyGlint.mul(rain.w).mul(1.85));
+    // Water specular bead highlight (calibrated glint from sky & neon city lights)
+    const skyGlint = mix(vec3(0.85), cityUniforms.uSkyHorizonColor, 0.45).add(vec3(0.25));
+    color.addAssign(skyGlint.mul(rain.w).mul(1.05));
     const luma = dot(color, vec3(0.2126, 0.7152, 0.0722)).toVar();
 
     // Gentle cool shadow / warm highlight separation; multiply rather than lifting the black level.
@@ -88,12 +154,14 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
     const highlights = mix(vec3(1), vec3(1.035, 1.005, 0.965), smoothstep(0.60, 3.0, luma));
     color.mulAssign(shadows.mul(highlights));
 
-    // Contrast pivots around middle gray and scales RGB together, avoiding per-channel gamma shifts.
-    color.mulAssign(pow(max(luma, 0.0001).div(0.18), contrast.sub(1.0)));
+    // Contrast pivots around middle gray and scales RGB together, modulated gently by atmospheric weather.
+    const effectiveContrast = max(float(0.72), contrast.add(uWeatherContrastShift));
+    const effectiveSaturation = max(float(0.15), saturation.add(uWeatherSaturationShift));
+    color.mulAssign(pow(max(luma, 0.0001).div(0.18), effectiveContrast.sub(1.0)));
     const gray = dot(color, vec3(0.2126, 0.7152, 0.0722));
     const chroma = max(max(color.r, color.g), color.b).sub(min(min(color.r, color.g), color.b));
     const vibrance = float(0.10).mul(float(1).sub(chroma.div(max(max(max(color.r, color.g), color.b), 0.0001))));
-    color.assign(max(mix(vec3(gray), color, saturation.add(vibrance)), vec3(0)));
+    color.assign(max(mix(vec3(gray), color, effectiveSaturation.add(vibrance)), vec3(0)));
 
     // Normalize by the corner radius so the lens falloff remains subtle in portrait and landscape.
     const aspect = screenSize.x.div(screenSize.y);
@@ -113,7 +181,7 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
   }
 
   applyPreset('golden');
-  return { outputNode, applyPreset };
+  return { outputNode, applyPreset, update };
 }
 
 export { createPostProcessing };

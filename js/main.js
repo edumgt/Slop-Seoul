@@ -261,7 +261,18 @@ async function initApp() {
   const reflectionMask = scenePassMetalRough.r.greaterThan(0).select(smoothstep(maxSSRRoughness, 0.55, scenePassMetalRough.g), 0);
   const reflections = ssrPass.mul(reflectionMask);
   const colorGrade = createPostProcessing(renderer, scenePassColor, reflections, {
-    uLensRainIntensity: weatherSystem.uLensRainIntensity
+    sceneDepth: scenePassDepth,
+    sceneNormal: scenePassNormal,
+    sceneMetalRough: scenePassMetalRough,
+    camera: cameraSystem.camera,
+    uLensRainIntensity: weatherSystem.uLensRainIntensity,
+    uScreenFogShift: weatherSystem.uScreenFogShift,
+    uScreenFogDensity: weatherSystem.uScreenFogDensity,
+    uScreenFogHeight: weatherSystem.uScreenFogHeight,
+    uSurfaceRippleIntensity: weatherSystem.uSurfaceRippleIntensity,
+    uWeatherContrastShift: weatherSystem.uWeatherContrastShift,
+    uWeatherSaturationShift: weatherSystem.uWeatherSaturationShift,
+    uWeatherFogColor: weatherSystem.uWeatherFogColor
   });
   const renderPipeline = new THREE.RenderPipeline(renderer, colorGrade.outputNode);
 
@@ -755,6 +766,9 @@ async function initApp() {
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
     // Traffic collisions can move the player after controller updates; finalize moving hierarchies here.
     for (const root of dynamicRoots) root.updateMatrixWorld();
+
+    // Update camera matrix uniforms for screen-space depth/normal weather effects
+    colorGrade.update(cameraSystem.camera);
 
     // Render frame via TSL RenderPipeline (SSR + Bloom)
     if (!warmedUp) {

@@ -231,9 +231,9 @@ function createLensRainOverlay(uLensRainIntensity) {
     const colId = floor(uvs.x.mul(colScale));
     const colSeed = hash22(vec2(colId, float(9.12)));
 
-    // Gravity trickle speed
+    // Gravity trickle speed (screenUV.y is 0 at top -> 1 at bottom, so subtracting time moves drops downward)
     const fallSpeed = mix(float(0.55), float(1.25), colSeed.x);
-    const yProg = uvs.y.mul(2.6).add(time.mul(fallSpeed));
+    const yProg = uvs.y.mul(2.6).sub(time.mul(fallSpeed));
     const yFract = fract(yProg);
 
     // Sinuous path wiggle
@@ -246,11 +246,12 @@ function createLensRainOverlay(uLensRainIntensity) {
     const headInside = smoothstep(headRadius, headRadius.mul(0.78), headDist);
     const headNorm = vec2(colFract, yFract.sub(0.5).mul(1.85)).div(headRadius);
 
-    // Trail micro-beads trailing behind sliding drop
+    // Trail micro-beads trailing behind (above) the sliding drop head
     const trailProg = yProg.mul(4.0);
     const trailFract = fract(trailProg);
     const trailDist = length(vec2(colFract, trailFract.sub(0.5).mul(2.2)));
-    const trailInside = smoothstep(0.07, 0.03, trailDist).mul(smoothstep(0.05, 0.45, yFract));
+    const behindHead = smoothstep(0.04, 0.16, yFract).mul(smoothstep(0.52, 0.40, yFract));
+    const trailInside = smoothstep(0.07, 0.03, trailDist).mul(behindHead);
 
     const totalStreakMask = clamp(headInside.add(trailInside.mul(0.75)), 0.0, 1.0);
     const streakNorm = headNorm.mul(headInside);
@@ -259,17 +260,19 @@ function createLensRainOverlay(uLensRainIntensity) {
     return vec4(streakNorm.x, streakNorm.y, totalStreakMask, streakGleam);
   });
 
-  // Layer 4: Splash impact bursts (direct hits on lens)
+  // Layer 4: Splash impact bursts (direct hits on lens with randomized coordinates each cycle)
   const calcSplashImpacts = Fn(() => {
     const totalNormal = vec2(0.0, 0.0).toVar();
     const totalMask = float(0.0).toVar();
     const totalHighlight = float(0.0).toVar();
 
-    // 3 staggered splash centers
+    // 3 staggered splash centers that relocate on every impact cycle
     for (let i = 0; i < 3; i++) {
-      const seed = hash22(vec2(float(i * 3.7 + 1.2), float(14.8 + i * 2.3)));
-      const splashCenter = seed.mul(vec2(aspect, float(1.0)));
-      const splashPhase = fract(time.mul(0.42).add(float(i * 0.33)));
+      const splashClock = time.mul(0.45).add(float(i * 0.33));
+      const splashPhase = fract(splashClock);
+      const cycleId = floor(splashClock);
+      const seed = hash22(vec2(cycleId.add(float(i * 19.7 + 1.2)), float(14.8 + i * 2.3)));
+      const splashCenter = seed.mul(0.84).add(0.08).mul(vec2(aspect, float(1.0)));
 
       const d = uvs.sub(splashCenter);
       const dist = length(d);

@@ -28,6 +28,7 @@ import {
 } from 'three/tsl';
 import { cityUniforms } from './tsl-materials.js';
 import { TIME_PRESETS } from './lighting.js';
+import { getScreenWeatherTargets, stepWeatherValue } from './screen-weather.js';
 
 // =========================================================================
 // 1. WEATHER PRESETS & CONFIGURATION
@@ -200,9 +201,32 @@ class WeatherSystem {
     this.targetLensRainIntensity = 0.0;
     this.currentLensRainIntensity = 0.0;
 
+    // Screen-space post-processing weather uniforms (smoothly transitioned in update)
+    this.uScreenFogShift = uniform(float(0.0));
+    this.uScreenFogDensity = uniform(float(0.0));
+    this.uScreenFogHeight = uniform(float(600.0));
+    this.uSurfaceRippleIntensity = uniform(float(0.0));
+    this.uWeatherContrastShift = uniform(float(0.0));
+    this.uWeatherSaturationShift = uniform(float(0.0));
+    this.uWeatherFogColor = uniform(new THREE.Color(0xdcc5ae));
+
+    this.targetRainIntensity = 0.0;
+    this.targetScreenFogShift = 0.0;
+    this.targetScreenFogDensity = 0.0;
+    this.targetScreenFogHeight = 600.0;
+    this.targetSurfaceRippleIntensity = 0.0;
+    this.targetContrastShift = 0.0;
+    this.targetSaturationShift = 0.0;
+    this.targetWeatherFogColor = new THREE.Color(0xdcc5ae);
+    this.targetFogDensity = 0.00024;
+    this.targetFogHeight = 900.0;
+    this.targetWetness = 0.12;
+    this.targetRainDropCount = 0;
+    this.targetSplashCount = 0;
+
     this.initRainParticles();
     this.initSplashParticles();
-    this.applyWeather('clear', this.lightingSystem.activePresetId || 'golden');
+    this.applyWeather('clear', this.lightingSystem.activePresetId || 'golden', true);
   }
 
   initRainParticles() {
@@ -364,56 +388,49 @@ class WeatherSystem {
     return this.activeWeatherId;
   }
 
-  applyWeather(weatherId, timeId) {
+  applyWeather(weatherId, timeId, immediate = false) {
     const w = getWeatherPreset(weatherId);
     this.activeWeatherId = w.id;
 
     const timePreset = TIME_PRESETS[timeId] || TIME_PRESETS.golden;
     const fogParams = calculateAtmosphericFogParams(weatherId, timePreset);
     const clouds = calculateCloudParameters(weatherId, timePreset.cloudCoverage, timePreset.cloudDensity);
+    const screenTargets = getScreenWeatherTargets(weatherId);
 
-    // Apply rain particle parameters
-    this.uRainParams.value.set(
-      w.rainIntensity,
-      w.fallSpeed,
-      w.windX,
-      w.windZ
-    );
+    // Rain particle physics & target intensity
+    this.targetRainIntensity = w.rainIntensity;
+    this.targetRainDropCount = w.rainDropCount;
+    this.targetSplashCount = w.splashCount;
+    this.uRainParams.value.y = w.fallSpeed;
+    this.uRainParams.value.z = w.windX;
+    this.uRainParams.value.w = w.windZ;
 
-    // Set instance counts
-    this.rainMesh.count = w.rainDropCount;
-    this.rainMesh.visible = w.rainDropCount > 0;
-    if (this.rainMesh.count > 0) {
+    if (w.rainDropCount > 0) {
+      this.rainMesh.count = w.rainDropCount;
+      this.rainMesh.visible = true;
       this.rainMesh.instanceMatrix.needsUpdate = true;
+    } else if (immediate || this.currentRainIntensity <= 0.005) {
+      this.rainMesh.count = 0;
+      this.rainMesh.visible = false;
     }
 
-    this.splashMesh.count = w.splashCount;
-    this.splashMesh.visible = w.splashCount > 0;
-    if (this.splashMesh.count > 0) {
+    if (w.splashCount > 0) {
+      this.splashMesh.count = w.splashCount;
+      this.splashMesh.visible = true;
       this.splashMesh.instanceMatrix.needsUpdate = true;
+    } else if (immediate || this.currentRainIntensity <= 0.005) {
+      this.splashMesh.count = 0;
+      this.splashMesh.visible = false;
     }
 
-    // Harmonize LightingSystem atmospheric fog
+    // LightingSystem sky clouds & directional light attenuation
     if (this.lightingSystem) {
-      if (this.lightingSystem.uFogDensity) {
-        this.lightingSystem.uFogDensity.value = fogParams.density;
-      }
-      if (this.lightingSystem.uFogHeight) {
-        this.lightingSystem.uFogHeight.value = fogParams.height;
-      }
-      if (this.lightingSystem.scene?.fog) {
-        this.lightingSystem.scene.fog.density = fogParams.density;
-        this.lightingSystem.scene.fog.color.setHex(fogParams.fogColor);
-      }
-
-      // Sky mesh overcast clouds & atmospheric haze
       if (this.lightingSystem.sky) {
         this.lightingSystem.sky.cloudCoverage.value = clouds.coverage;
         this.lightingSystem.sky.cloudDensity.value = clouds.density;
         this.lightingSystem.sky.turbidity.value = timePreset.turbidity * w.turbidityMult;
       }
 
-      // Sun and skylight attenuation during storms
       if (this.lightingSystem.sunLight) {
         this.lightingSystem.sunLight.intensity = timePreset.sunIntensity * w.lightAtten;
       }
@@ -422,23 +439,95 @@ class WeatherSystem {
       }
     }
 
-    // Road wetness & standing puddle reflections
-    cityUniforms.uRoadWetness.value = fogParams.roadWetness;
+    // Set transition targets for atmospheric & screen-space shaders
+    this.targetFogDensity = fogParams.density;
+    this.targetFogHeight = fogParams.height;
+    this.targetWetness = fogParams.roadWetness;
+    this.targetWeatherFogColor.setHex(fogParams.fogColor);
 
-    // Lens rain intensity target
-    this.targetLensRainIntensity = w.lensRainIntensity !== undefined ? w.lensRainIntensity : (w.rainIntensity > 0 ? 0.65 : 0.0);
+    this.targetLensRainIntensity = w.lensRainIntensity !== undefined
+      ? w.lensRainIntensity
+      : screenTargets.lensIntensity;
+    this.targetScreenFogShift = screenTargets.fogShift;
+    this.targetScreenFogDensity = screenTargets.fogDensity;
+    this.targetScreenFogHeight = screenTargets.fogHeight;
+    this.targetSurfaceRippleIntensity = screenTargets.rippleIntensity;
+    this.targetContrastShift = screenTargets.contrastShift;
+    this.targetSaturationShift = screenTargets.saturationShift;
+
+    if (immediate) {
+      this.currentRainIntensity = this.targetRainIntensity;
+      this.uRainParams.value.x = this.currentRainIntensity;
+      this.currentLensRainIntensity = this.targetLensRainIntensity;
+      this.uLensRainIntensity.value = this.currentLensRainIntensity;
+      this.currentWetness = this.targetWetness;
+      cityUniforms.uRoadWetness.value = this.currentWetness;
+      this.uScreenFogShift.value = this.targetScreenFogShift;
+      this.uScreenFogDensity.value = this.targetScreenFogDensity;
+      this.uScreenFogHeight.value = this.targetScreenFogHeight;
+      this.uSurfaceRippleIntensity.value = this.targetSurfaceRippleIntensity;
+      this.uWeatherContrastShift.value = this.targetContrastShift;
+      this.uWeatherSaturationShift.value = this.targetSaturationShift;
+      this.uWeatherFogColor.value.copy(this.targetWeatherFogColor);
+
+      if (this.lightingSystem) {
+        if (this.lightingSystem.uFogDensity) this.lightingSystem.uFogDensity.value = this.targetFogDensity;
+        if (this.lightingSystem.uFogHeight) this.lightingSystem.uFogHeight.value = this.targetFogHeight;
+        if (this.lightingSystem.scene?.fog) {
+          this.lightingSystem.scene.fog.density = this.targetFogDensity;
+          this.lightingSystem.scene.fog.color.copy(this.targetWeatherFogColor);
+        }
+      }
+    }
   }
 
   update(dt, elapsed, camera, focusPos, activePresetId) {
     if (camera) {
       this.uCamPos.value.copy(camera.position);
     }
-    const speed = Math.min(1.0, (dt || 0.016) * 2.5);
-    this.currentLensRainIntensity += (this.targetLensRainIntensity - this.currentLensRainIntensity) * speed;
-    if (Math.abs(this.targetLensRainIntensity - this.currentLensRainIntensity) < 0.001) {
-      this.currentLensRainIntensity = this.targetLensRainIntensity;
+    const stepDt = dt || 0.016;
+
+    // Smoothly transition precipitation & screen-space weather uniforms
+    this.currentRainIntensity = stepWeatherValue(this.currentRainIntensity, this.targetRainIntensity, stepDt, 2.8);
+    this.uRainParams.value.x = this.currentRainIntensity;
+    if (this.targetRainDropCount === 0 && this.currentRainIntensity <= 0.005) {
+      this.rainMesh.count = 0;
+      this.rainMesh.visible = false;
     }
+    if (this.targetSplashCount === 0 && this.currentRainIntensity <= 0.005) {
+      this.splashMesh.count = 0;
+      this.splashMesh.visible = false;
+    }
+
+    this.currentLensRainIntensity = stepWeatherValue(this.currentLensRainIntensity, this.targetLensRainIntensity, stepDt, 2.4);
     this.uLensRainIntensity.value = this.currentLensRainIntensity;
+
+    this.uScreenFogShift.value = stepWeatherValue(this.uScreenFogShift.value, this.targetScreenFogShift, stepDt, 2.2);
+    this.uScreenFogDensity.value = stepWeatherValue(this.uScreenFogDensity.value, this.targetScreenFogDensity, stepDt, 2.2);
+    this.uScreenFogHeight.value = stepWeatherValue(this.uScreenFogHeight.value, this.targetScreenFogHeight, stepDt, 2.2);
+    this.uSurfaceRippleIntensity.value = stepWeatherValue(this.uSurfaceRippleIntensity.value, this.targetSurfaceRippleIntensity, stepDt, 2.2);
+    this.uWeatherContrastShift.value = stepWeatherValue(this.uWeatherContrastShift.value, this.targetContrastShift, stepDt, 2.2);
+    this.uWeatherSaturationShift.value = stepWeatherValue(this.uWeatherSaturationShift.value, this.targetSaturationShift, stepDt, 2.2);
+
+    const colorAlpha = 1.0 - Math.exp(-3.0 * Math.min(stepDt, 0.25));
+    this.uWeatherFogColor.value.lerp(this.targetWeatherFogColor, colorAlpha);
+
+    // Smoothly transition road wetness & scene atmospheric fog
+    this.currentWetness = stepWeatherValue(this.currentWetness, this.targetWetness, stepDt, 1.8);
+    cityUniforms.uRoadWetness.value = this.currentWetness;
+
+    if (this.lightingSystem) {
+      if (this.lightingSystem.uFogDensity) {
+        this.lightingSystem.uFogDensity.value = stepWeatherValue(this.lightingSystem.uFogDensity.value, this.targetFogDensity, stepDt, 2.2);
+      }
+      if (this.lightingSystem.uFogHeight) {
+        this.lightingSystem.uFogHeight.value = stepWeatherValue(this.lightingSystem.uFogHeight.value, this.targetFogHeight, stepDt, 2.2);
+      }
+      if (this.lightingSystem.scene?.fog) {
+        this.lightingSystem.scene.fog.density = stepWeatherValue(this.lightingSystem.scene.fog.density, this.targetFogDensity, stepDt, 2.2);
+        this.lightingSystem.scene.fog.color.lerp(this.targetWeatherFogColor, colorAlpha);
+      }
+    }
   }
 }
 
