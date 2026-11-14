@@ -272,7 +272,10 @@ async function initApp() {
     uSurfaceRippleIntensity: weatherSystem.uSurfaceRippleIntensity,
     uWeatherContrastShift: weatherSystem.uWeatherContrastShift,
     uWeatherSaturationShift: weatherSystem.uWeatherSaturationShift,
-    uWeatherFogColor: weatherSystem.uWeatherFogColor
+    uWeatherFogColor: weatherSystem.uWeatherFogColor,
+    uLightningFlash: weatherSystem.uLightningFlash,
+    uLightningIntensity: weatherSystem.uLightningIntensity,
+    uLightningOrigin: weatherSystem.uLightningOrigin
   });
   const renderPipeline = new THREE.RenderPipeline(renderer, colorGrade.outputNode);
 

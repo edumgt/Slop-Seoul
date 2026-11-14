@@ -119,6 +119,61 @@ function calculateSurfaceRippleWave(cellDist, phase, seed, rippleDensity = 1.0) 
   return Math.max(0.0, wave * fade);
 }
 
+/**
+ * Deterministic 1D pseudo-random hash in [0, 1).
+ */
+function hash1D(n) {
+  const s = Math.sin(n * 127.1 + 311.7) * 43758.5453123;
+  return s - Math.floor(s);
+}
+
+/**
+ * Pure multi-pulse periodic lightning flash envelope for downpour storm states.
+ * Produces an initial strike shortly after entering downpour (~0.75s) followed by
+ * irregular periodic double/triple-flicker strikes every ~4–8.5 seconds.
+ */
+function calculateLightningFlash(stormTime, intensity = 1.0) {
+  const clampedIntensity = Math.max(0.0, Math.min(1.0, intensity || 0.0));
+  if (clampedIntensity <= 0.001 || stormTime < 0) {
+    return { flash: 0.0, skyGlow: 0.0, boltX: 0.5, cycleIndex: 0, isStrike: false };
+  }
+
+  const slotDuration = 6.0;
+  const cycleIndex = Math.floor(stormTime / slotDuration);
+  const strikeOffset = cycleIndex === 0 ? 0.75 : 0.8 + hash1D(cycleIndex + 1.37) * 3.6;
+  const strikeStart = cycleIndex * slotDuration + strikeOffset;
+  const localT = stormTime - strikeStart;
+  const boltX = 0.16 + hash1D(cycleIndex * 17.3 + 3.1) * 0.68;
+
+  if (localT < 0.0 || localT > 0.78) {
+    return { flash: 0.0, skyGlow: 0.0, boltX, cycleIndex, isStrike: false };
+  }
+
+  // Primary cloud-to-ground bolt pulse
+  const attack1 = Math.min(1.0, localT / 0.018);
+  const pulse1 = attack1 * Math.exp(-localT * 16.5);
+
+  // Secondary restrike flicker
+  const t2 = localT - 0.16;
+  const pulse2 = t2 > 0.0 ? 0.82 * Math.min(1.0, t2 / 0.015) * Math.exp(-t2 * 13.5) : 0.0;
+
+  // Tertiary residual discharge shimmer
+  const t3 = localT - 0.39;
+  const pulse3 = t3 > 0.0 ? 0.38 * Math.min(1.0, t3 / 0.02) * Math.exp(-t3 * 11.5) : 0.0;
+
+  const rawFlash = Math.min(1.0, pulse1 + pulse2 + pulse3);
+  const flash = rawFlash * clampedIntensity;
+  const skyGlow = Math.min(1.0, (pulse1 * 1.15 + pulse2 * 0.95 + pulse3 * 0.55) * clampedIntensity);
+
+  return {
+    flash,
+    skyGlow,
+    boltX,
+    cycleIndex,
+    isStrike: flash > 0.02
+  };
+}
+
 // =========================================================================
 // 2. TSL SCREEN-SPACE SURFACE RIPPLES & FOG DENSITY SHIFT SHADER
 // =========================================================================
@@ -128,7 +183,7 @@ function calculateSurfaceRippleWave(cellDist, phase, seed, rippleDensity = 1.0) 
  * - Concentric raindrop ripples on wet upward-facing world surfaces
  * - Subtle screen-space depth fog density shifts and drifting mist
  *
- * Returns a TSL Fn evaluating to vec4(rippleGlint, rippleNormalShift, fogAmount, 0.0).
+ * Returns a TSL Fn evaluating to vec4(rippleGlint, rippleNormalShift, fogAmount, surfaceMask).
  */
 function createScreenWeatherEffect({
   sceneDepth,
@@ -164,9 +219,9 @@ function createScreenWeatherEffect({
 
     const radius = phase.mul(0.42);
     const ringDist = abs(dist.sub(radius));
-    const ringEnvelope = smoothstep(0.085, 0.0, ringDist);
+    const ringEnvelope = smoothstep(0.0, 0.085, ringDist).oneMinus();
     // Double ring harmonic for realistic water meniscus wave
-    const doubleRing = smoothstep(0.045, 0.0, abs(dist.sub(radius.mul(0.62)))).mul(0.5);
+    const doubleRing = smoothstep(0.0, 0.045, abs(dist.sub(radius.mul(0.62)))).oneMinus().mul(0.5);
 
     const fade = pow(float(1.0).sub(phase), 1.7);
     const activeMask = smoothstep(0.15, 0.45, hCycle.y);
@@ -197,8 +252,8 @@ function createScreenWeatherEffect({
     const upMask = smoothstep(0.62, 0.90, worldNorm.y).mul(validNorm);
 
     // Distance & grazing fade so distant tiles don't shimmer/alias
-    const rippleDistFade = smoothstep(72.0, 14.0, viewDist).mul(smoothstep(0.35, 1.8, viewDist));
-    const wetSurfaceMask = mix(float(0.42), float(1.0), smoothstep(0.92, 0.16, sceneMetalRough.g));
+    const rippleDistFade = smoothstep(14.0, 72.0, viewDist).oneMinus().mul(smoothstep(0.35, 1.8, viewDist));
+    const wetSurfaceMask = mix(float(0.42), float(1.0), smoothstep(0.16, 0.92, sceneMetalRough.g).oneMinus());
     const surfaceMask = upMask.mul(rippleDistFade).mul(bgMask).mul(wetSurfaceMask).mul(uSurfaceRippleIntensity);
 
     const layer1 = evalRippleLayer(worldPos.xz, float(0.85), float(1.55));
@@ -227,11 +282,69 @@ function createScreenWeatherEffect({
   });
 }
 
+// =========================================================================
+// 3. TSL DOWNPOUR LIGHTNING FLASH & DYNAMIC SCREEN BRIGHTNESS SPIKE
+// =========================================================================
+
+/**
+ * Evaluates screen-space sheet-lightning sky discharge, atmospheric haze scatter,
+ * and dynamic screen brightness spikes during downpour storms.
+ *
+ * Returns a TSL Fn evaluating to vec4(skyDischarge, brightnessSpike, hazeScatter, boltMask).
+ */
+function createLightningWeatherEffect({
+  sceneDepth,
+  uLightningFlash,
+  uLightningIntensity,
+  uLightningOrigin
+}) {
+  return Fn(() => {
+    const isSky = isBackgroundDepth(sceneDepth.r);
+    const skyMask = isSky.select(float(1.0), float(0.0));
+
+    // Rapid GPU sub-frame plasma flicker synchronized with the storm strike envelope
+    const plasmaFlicker = float(0.86)
+      .add(sin(time.mul(94.0)).mul(0.09))
+      .add(cos(time.mul(157.0)).mul(0.05));
+    const activeFlash = clamp(uLightningFlash.mul(uLightningIntensity).mul(plasmaFlicker), 0.0, 1.35);
+
+    // Sheet-lightning origin in upper sky + forked atmospheric filament glow
+    const skyDelta = screenUV.sub(uLightningOrigin);
+    const radialDist = length(skyDelta.mul(vec2(1.1, 1.85)));
+    const sheetGlow = exp(radialDist.mul(-3.2));
+
+    // Jagged lightning filament accent across upper sky canopy
+    const zig = sin(screenUV.y.mul(34.0).add(time.mul(22.0)))
+      .mul(0.018)
+      .add(sin(screenUV.y.mul(78.0)).mul(0.008));
+    const boltDist = abs(screenUV.x.sub(uLightningOrigin.x).add(zig));
+    const verticalSpan = smoothstep(0.08, 0.44, screenUV.y).oneMinus();
+    const boltCore = smoothstep(0.001, 0.014, boltDist).oneMinus().mul(verticalSpan);
+    const boltHalo = exp(boltDist.mul(-28.0)).mul(verticalSpan).mul(0.55);
+
+    // Sky pixels receive intense sheet discharge + bolt halo; upper screen gets subtle bloom spillover
+    const upperCanopy = smoothstep(0.05, 0.75, screenUV.y).oneMinus();
+    const skyDischarge = activeFlash
+      .mul(skyMask.mul(sheetGlow.mul(1.25).add(boltCore.mul(2.4)).add(boltHalo)).add(upperCanopy.mul(0.18)));
+
+    // Dynamic screen brightness spike across the entire viewport (stronger toward horizon/sky)
+    const brightnessSpike = activeFlash.mul(mix(float(0.85), float(1.35), upperCanopy));
+
+    // Atmospheric fog/haze scatter illumination during discharge
+    const hazeScatter = activeFlash.mul(mix(float(0.45), float(1.0), sheetGlow));
+
+    return vec4(skyDischarge, brightnessSpike, hazeScatter, boltCore.mul(activeFlash).mul(skyMask));
+  });
+}
+
 export {
   SCREEN_WEATHER_PRESETS,
   getScreenWeatherTargets,
   stepWeatherValue,
   calculateScreenFogFactor,
   calculateSurfaceRippleWave,
-  createScreenWeatherEffect
+  hash1D,
+  calculateLightningFlash,
+  createScreenWeatherEffect,
+  createLightningWeatherEffect
 };

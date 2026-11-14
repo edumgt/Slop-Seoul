@@ -159,11 +159,13 @@ class LightingSystem {
     this.uSkyExposure = uniform(0.148);
     this.uNightFactor = uniform(0.0);
     this.uNightSkyColor = uniform(new THREE.Color(0x0b1528));
+    this.uSkyLightningBoost = uniform(0.0);
     const rawSkyNode = this.sky.material.colorNode;
     this.sky.material.colorNode = Fn(() => {
       const raw = rawSkyNode;
       const dayCol = raw.rgb.mul(this.uSkyExposure);
-      const finalSky = mix(dayCol, this.uNightSkyColor, this.uNightFactor);
+      const baseSky = mix(dayCol, this.uNightSkyColor, this.uNightFactor);
+      const finalSky = baseSky.add(vec3(0.68, 0.84, 1.0).mul(this.uSkyLightningBoost));
       return vec4(finalSky, float(1.0));
     })();
 

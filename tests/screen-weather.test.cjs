@@ -9,7 +9,7 @@ const source = readFileSync(join(__dirname, '../js/screen-weather.js'), 'utf8');
 const presetsMatch = source.match(/const SCREEN_WEATHER_PRESETS = (\{[\s\S]*?\n\};)/);
 assert.ok(presetsMatch, 'SCREEN_WEATHER_PRESETS must be defined in screen-weather.js');
 
-const helpersMatch = source.match(/function getScreenWeatherTargets\([\s\S]*?function calculateSurfaceRippleWave\([\s\S]*?\n\}/);
+const helpersMatch = source.match(/function getScreenWeatherTargets\([\s\S]*?function calculateLightningFlash\([\s\S]*?\n\}/);
 assert.ok(helpersMatch, 'Screen weather pure helper functions must be defined in screen-weather.js');
 
 const {
@@ -17,7 +17,9 @@ const {
   getScreenWeatherTargets,
   stepWeatherValue,
   calculateScreenFogFactor,
-  calculateSurfaceRippleWave
+  calculateSurfaceRippleWave,
+  hash1D,
+  calculateLightningFlash
 } = vm.runInNewContext(`
   ${presetsMatch[0]}
   ${helpersMatch[0]}
@@ -26,7 +28,9 @@ const {
     getScreenWeatherTargets,
     stepWeatherValue,
     calculateScreenFogFactor,
-    calculateSurfaceRippleWave
+    calculateSurfaceRippleWave,
+    hash1D,
+    calculateLightningFlash
   });
 `);
 
@@ -106,4 +110,34 @@ test('calculateSurfaceRippleWave expands radially, fades over phase, and respect
   assert.ok(onWave > 0.2, 'Wavefront should peak cleanly at ring radius');
   assert.equal(offWave, 0.0, 'Outside ring envelope must be zero');
   assert.ok(onWave > laterOnWave, 'Ripple amplitude decays as ring expands');
+});
+
+test('calculateLightningFlash stays inactive when intensity is zero and triggers multi-pulse strikes in downpour', () => {
+  assert.equal(calculateLightningFlash(0.77, 0.0).flash, 0.0);
+  assert.equal(calculateLightningFlash(0.77, 0.0).isStrike, false);
+  assert.equal(calculateLightningFlash(0.2, 1.0).isStrike, false);
+
+  // Initial strike begins at 0.75s with sharp primary pulse (~0.77s)
+  const peak1 = calculateLightningFlash(0.77, 1.0);
+  assert.equal(peak1.isStrike, true);
+  assert.ok(peak1.flash > 0.65, `Expected strong primary flash peak, got ${peak1.flash}`);
+  assert.ok(peak1.skyGlow > 0.7, `Expected bright sky discharge glow, got ${peak1.skyGlow}`);
+
+  // Brief trough before secondary restrike (~0.89s), then secondary peak (~0.93s)
+  const trough = calculateLightningFlash(0.89, 1.0);
+  const restrike = calculateLightningFlash(0.93, 1.0);
+  assert.ok(restrike.flash > trough.flash, 'Secondary restrike creates realistic double-flicker');
+
+  // Quiet storm gap between strikes
+  const gap = calculateLightningFlash(2.5, 1.0);
+  assert.equal(gap.flash, 0.0);
+  assert.equal(gap.isStrike, false);
+
+  // Subsequent periodic strike occurs in cycle 1 (6.0s..12.0s) with different bolt position
+  const cycle1Start = 6.0 + 0.8 + hash1D(1 + 1.37) * 3.6;
+  const cycle1Strike = calculateLightningFlash(cycle1Start + 0.025, 1.0);
+  assert.equal(cycle1Strike.isStrike, true);
+  assert.ok(cycle1Strike.flash > 0.5);
+  assert.notEqual(cycle1Strike.boltX, peak1.boltX, 'Periodic strikes vary sky position');
+  assert.ok(cycle1Strike.boltX >= 0.16 && cycle1Strike.boltX <= 0.84);
 });

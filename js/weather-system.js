@@ -28,7 +28,7 @@ import {
 } from 'three/tsl';
 import { cityUniforms } from './tsl-materials.js';
 import { TIME_PRESETS } from './lighting.js';
-import { getScreenWeatherTargets, stepWeatherValue } from './screen-weather.js';
+import { getScreenWeatherTargets, stepWeatherValue, calculateLightningFlash } from './screen-weather.js';
 
 // =========================================================================
 // 1. WEATHER PRESETS & CONFIGURATION
@@ -210,6 +210,16 @@ class WeatherSystem {
     this.uWeatherSaturationShift = uniform(float(0.0));
     this.uWeatherFogColor = uniform(new THREE.Color(0xdcc5ae));
 
+    // Downpour lightning flash uniforms
+    this.uLightningIntensity = uniform(float(0.0));
+    this.uLightningFlash = uniform(float(0.0));
+    this.uLightningOrigin = uniform(new THREE.Vector2(0.5, 0.16));
+    this.targetLightningIntensity = 0.0;
+    this.currentLightningIntensity = 0.0;
+    this.stormElapsed = 0.0;
+    this.baseWeatherSunIntensity = 5.8;
+    this.baseWeatherHemiIntensity = 1.48;
+
     this.targetRainIntensity = 0.0;
     this.targetScreenFogShift = 0.0;
     this.targetScreenFogDensity = 0.0;
@@ -389,6 +399,7 @@ class WeatherSystem {
   }
 
   applyWeather(weatherId, timeId, immediate = false) {
+    const prevWeatherId = this.activeWeatherId;
     const w = getWeatherPreset(weatherId);
     this.activeWeatherId = w.id;
 
@@ -424,6 +435,8 @@ class WeatherSystem {
     }
 
     // LightingSystem sky clouds & directional light attenuation
+    this.baseWeatherSunIntensity = timePreset.sunIntensity * w.lightAtten;
+    this.baseWeatherHemiIntensity = timePreset.hemiIntensity * Math.max(0.6, w.lightAtten);
     if (this.lightingSystem) {
       if (this.lightingSystem.sky) {
         this.lightingSystem.sky.cloudCoverage.value = clouds.coverage;
@@ -432,11 +445,17 @@ class WeatherSystem {
       }
 
       if (this.lightingSystem.sunLight) {
-        this.lightingSystem.sunLight.intensity = timePreset.sunIntensity * w.lightAtten;
+        this.lightingSystem.sunLight.intensity = this.baseWeatherSunIntensity;
       }
       if (this.lightingSystem.hemiLight) {
-        this.lightingSystem.hemiLight.intensity = timePreset.hemiIntensity * Math.max(0.6, w.lightAtten);
+        this.lightingSystem.hemiLight.intensity = this.baseWeatherHemiIntensity;
       }
+    }
+
+    // Downpour lightning flash target (active only during downpour)
+    this.targetLightningIntensity = w.id === 'downpour' ? 1.0 : 0.0;
+    if (w.id === 'downpour' && prevWeatherId !== 'downpour') {
+      this.stormElapsed = 0.0;
     }
 
     // Set transition targets for atmospheric & screen-space shaders
@@ -469,10 +488,14 @@ class WeatherSystem {
       this.uWeatherContrastShift.value = this.targetContrastShift;
       this.uWeatherSaturationShift.value = this.targetSaturationShift;
       this.uWeatherFogColor.value.copy(this.targetWeatherFogColor);
+      this.currentLightningIntensity = this.targetLightningIntensity;
+      this.uLightningIntensity.value = this.currentLightningIntensity;
+      this.uLightningFlash.value = 0.0;
 
       if (this.lightingSystem) {
         if (this.lightingSystem.uFogDensity) this.lightingSystem.uFogDensity.value = this.targetFogDensity;
         if (this.lightingSystem.uFogHeight) this.lightingSystem.uFogHeight.value = this.targetFogHeight;
+        if (this.lightingSystem.uSkyLightningBoost) this.lightingSystem.uSkyLightningBoost.value = 0.0;
         if (this.lightingSystem.scene?.fog) {
           this.lightingSystem.scene.fog.density = this.targetFogDensity;
           this.lightingSystem.scene.fog.color.copy(this.targetWeatherFogColor);
@@ -512,11 +535,30 @@ class WeatherSystem {
     const colorAlpha = 1.0 - Math.exp(-3.0 * Math.min(stepDt, 0.25));
     this.uWeatherFogColor.value.lerp(this.targetWeatherFogColor, colorAlpha);
 
+    // Smoothly transition downpour lightning intensity & evaluate periodic flash pulses
+    this.currentLightningIntensity = stepWeatherValue(this.currentLightningIntensity, this.targetLightningIntensity, stepDt, 2.6);
+    this.uLightningIntensity.value = this.currentLightningIntensity;
+    if (this.targetLightningIntensity > 0.0 || this.currentLightningIntensity > 0.01) {
+      this.stormElapsed += Math.min(stepDt, 0.25);
+    }
+    const lightning = calculateLightningFlash(this.stormElapsed, this.currentLightningIntensity);
+    this.uLightningFlash.value = lightning.flash;
+    this.uLightningOrigin.value.set(lightning.boltX, 0.16);
+
     // Smoothly transition road wetness & scene atmospheric fog
     this.currentWetness = stepWeatherValue(this.currentWetness, this.targetWetness, stepDt, 1.8);
     cityUniforms.uRoadWetness.value = this.currentWetness;
 
     if (this.lightingSystem) {
+      if (this.lightingSystem.uSkyLightningBoost) {
+        this.lightingSystem.uSkyLightningBoost.value = lightning.skyGlow * 1.65;
+      }
+      if (this.lightingSystem.sunLight) {
+        this.lightingSystem.sunLight.intensity = this.baseWeatherSunIntensity + lightning.flash * 4.2;
+      }
+      if (this.lightingSystem.hemiLight) {
+        this.lightingSystem.hemiLight.intensity = this.baseWeatherHemiIntensity + lightning.flash * 2.1;
+      }
       if (this.lightingSystem.uFogDensity) {
         this.lightingSystem.uFogDensity.value = stepWeatherValue(this.lightingSystem.uFogDensity.value, this.targetFogDensity, stepDt, 2.2);
       }

@@ -20,7 +20,7 @@ import {
 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { createLensRainOverlay } from './lens-rain.js';
-import { createScreenWeatherEffect } from './screen-weather.js';
+import { createScreenWeatherEffect, createLightningWeatherEffect } from './screen-weather.js';
 import { cityUniforms } from './tsl-materials.js';
 
 // Scene-linear color grading and lens bloom, composed in the existing final render pass.
@@ -66,6 +66,9 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
   const uWeatherContrastShift = options?.uWeatherContrastShift || uniform(float(0.0));
   const uWeatherSaturationShift = options?.uWeatherSaturationShift || uniform(float(0.0));
   const uWeatherFogColor = options?.uWeatherFogColor || uniform(new THREE.Color(0xdcc5ae));
+  const uLightningFlash = options?.uLightningFlash || uniform(float(0.0));
+  const uLightningIntensity = options?.uLightningIntensity || uniform(float(0.0));
+  const uLightningOrigin = options?.uLightningOrigin || uniform(new THREE.Vector2(0.5, 0.16));
 
   const lensRainOverlay = createLensRainOverlay(uLensRainIntensity);
 
@@ -84,6 +87,15 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
       })
     : null;
 
+  const lightningWeatherEffect = options?.sceneDepth
+    ? createLightningWeatherEffect({
+        sceneDepth: options.sceneDepth,
+        uLightningFlash,
+        uLightningIntensity,
+        uLightningOrigin
+      })
+    : null;
+
   // Limit only bloom's peak radiance, scaling RGB together to retain neon and lamp colors.
   // The original HDR image keeps its full range for the tone mapper's highlight shoulder.
   const peak = max(max(exposed.r, exposed.g), exposed.b);
@@ -95,8 +107,15 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
   const outputNode = Fn(() => {
     const color = exposed.add(bloomPass.rgb).toVar();
 
-    // 1. Screen-space surface rain ripples & subtle depth fog shift
+    // 1. Screen-space surface rain ripples, subtle depth fog shift & lightning flash scatter
     const fogAmount = float(0.0).toVar();
+    const lightningVec = lightningWeatherEffect ? lightningWeatherEffect() : vec4(0.0);
+    const lightningSkyGlow = lightningVec.x;
+    const lightningBrightness = lightningVec.y;
+    const lightningHaze = lightningVec.z;
+    const lightningBolt = lightningVec.w;
+    const stormFogColor = uWeatherFogColor.add(vec3(0.45, 0.62, 0.92).mul(lightningHaze)).toVar();
+
     if (screenWeatherEffect) {
       const sw = screenWeatherEffect();
       const rippleGlint = sw.x;
@@ -114,15 +133,20 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
       const rippleBlend = clamp(rippleGlint.mul(0.55), 0.0, 0.65);
       color.assign(mix(color, rippleRefracted, rippleBlend));
 
-      // Specular ripple ring sheen reflecting sky & urban lights
-      const rippleSpec = mix(vec3(0.68, 0.78, 0.90), cityUniforms.uSkyHorizonColor, 0.45);
+      // Specular ripple ring sheen reflecting sky, neon, & lightning bursts
+      const rippleSpec = mix(vec3(0.68, 0.78, 0.90), cityUniforms.uSkyHorizonColor, 0.45)
+        .add(vec3(0.75, 0.88, 1.15).mul(lightningBrightness));
       color.addAssign(rippleSpec.mul(rippleGlint).mul(0.38));
 
-      // Subtle screen-space fog density veil
-      color.assign(mix(color, uWeatherFogColor, fogAmount));
+      // Subtle screen-space fog density veil illuminated by storm lightning
+      color.assign(mix(color, stormFogColor, fogAmount));
     }
 
-    // 2. Screen-space camera lens raindrops & splashes overlay (vec4: xy=normal, z=mask, w=highlight)
+    // 2. Sheet-lightning sky/cloud discharge & core bolt flash
+    color.addAssign(vec3(0.72, 0.86, 1.08).mul(lightningSkyGlow));
+    color.addAssign(vec3(0.95, 0.98, 1.15).mul(lightningBolt).mul(2.5));
+
+    // 3. Screen-space camera lens raindrops & splashes overlay (vec4: xy=normal, z=mask, w=highlight)
     const rain = lensRainOverlay();
     const refractOffset = rain.xy.mul(float(0.038));
     const distortedUV = clamp(screenUV.add(refractOffset), vec2(0.001), vec2(0.999));
@@ -133,7 +157,7 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
       .add(bloomPass.rgb)
       .toVar();
     if (screenWeatherEffect) {
-      refractedExposed.assign(mix(refractedExposed, uWeatherFogColor, fogAmount));
+      refractedExposed.assign(mix(refractedExposed, stormFogColor, fogAmount));
     }
 
     // Refractive optical displacement
@@ -144,9 +168,18 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
     const darkRim = float(1.0).sub(meniscus.mul(0.32));
     color.mulAssign(darkRim);
 
-    // Water specular bead highlight (calibrated glint from sky & neon city lights)
-    const skyGlint = mix(vec3(0.85), cityUniforms.uSkyHorizonColor, 0.45).add(vec3(0.25));
+    // Water specular bead highlight (calibrated glint from sky, neon, & lightning strikes)
+    const skyGlint = mix(vec3(0.85), cityUniforms.uSkyHorizonColor, 0.45)
+      .add(vec3(0.25))
+      .add(vec3(0.72, 0.86, 1.08).mul(lightningBrightness));
     color.addAssign(skyGlint.mul(rain.w).mul(1.05));
+
+    // 4. Dynamic screen brightness spike & electric temperature shift during downpour lightning
+    const flashBoost = float(1.0).add(lightningBrightness.mul(1.05));
+    const flashTint = mix(vec3(1.0), vec3(0.90, 0.96, 1.10), clamp(lightningBrightness, 0.0, 1.0));
+    color.mulAssign(flashBoost);
+    color.mulAssign(flashTint);
+
     const luma = dot(color, vec3(0.2126, 0.7152, 0.0722)).toVar();
 
     // Gentle cool shadow / warm highlight separation; multiply rather than lifting the black level.
