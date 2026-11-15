@@ -8,7 +8,7 @@ const { loadModule } = require('./helpers/module.cjs');
 const read = (path) => readFileSync(join(__dirname, '..', path), 'utf8');
 
 let ROADS, NYC_LANDMARKS, SEJONG_GOV_ROADS, TELEPORT_LOCATIONS, CITY_REGIONS,
-  getCityRegion, inferCityFromCoords, getCityLandmarks, getCityTeleports, getLocationLabel;
+  getCityRegion, inferCityFromCoords, getCityLandmarks, getCityTeleports, getLocationLabel, nearestRoads;
 test.before(async () => {
   ({
     ROADS,
@@ -20,7 +20,8 @@ test.before(async () => {
     inferCityFromCoords,
     getCityLandmarks,
     getCityTeleports,
-    getLocationLabel
+    getLocationLabel,
+    nearestRoads
   } = await import('../js/city-config.js'));
 });
 
@@ -137,3 +138,159 @@ test('CAMERA_PRESETS and city UI elements provide distinct Sejong and Seoul view
   assert.match(mainJs, /function selectCity\(/);
   assert.match(mainJs, /querySelectorAll\(['"]\.city-btn\[data-city\]['"]\)/);
 });
+
+test('Sejong landmarks stay clear of roads & teleports, keep elevated skybridges high, and expose custom geometries', () => {
+  class StubShape {
+    constructor() { this.ops = []; }
+    moveTo(x, y) { this.ops.push(['M', x, y]); }
+    lineTo(x, y) { this.ops.push(['L', x, y]); }
+    quadraticCurveTo(cx, cy, x, y) { this.ops.push(['Q', cx, cy, x, y]); }
+    closePath() { this.ops.push(['Z']); }
+  }
+  class StubGeometry {
+    constructor(type, args = {}) {
+      this.type = type;
+      this.args = args;
+      this.attributes = { position: { count: 24 }, normal: { count: 24 }, uv: { count: 24 } };
+    }
+    translate() { return this; }
+    rotateX() { return this; }
+  }
+  class StubObject3D {
+    constructor() {
+      this.children = [];
+      this.position = { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; }, copy(v) { this.x = v.x; this.y = v.y; this.z = v.z; } };
+      this.rotation = { x: 0, y: 0, z: 0 };
+    }
+    add(child) { this.children.push(child); }
+  }
+  class StubMesh extends StubObject3D {
+    constructor(geometry, material) { super(); this.geometry = geometry; this.material = material; }
+  }
+  class StubVector3 {
+    constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z; }
+    clone() { return new StubVector3(this.x, this.y, this.z); }
+    add(v) { this.x += v.x; this.y += v.y; this.z += v.z; return this; }
+    sub(v) { this.x -= v.x; this.y -= v.y; this.z -= v.z; return this; }
+    multiplyScalar(s) { this.x *= s; this.y *= s; this.z *= s; return this; }
+    length() { return Math.hypot(this.x, this.y, this.z); }
+  }
+  class StubCurve3 {
+    constructor(pts) { this.pts = pts; }
+    getPoint(t) {
+      const a = this.pts[0];
+      const b = this.pts[this.pts.length - 1];
+      return new StubVector3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
+    }
+  }
+  const makeMat = (kind) => class { constructor(opts = {}) { this.kind = kind; Object.assign(this, opts); } };
+  const stubThree = {
+    Shape: StubShape,
+    ExtrudeGeometry: class extends StubGeometry { constructor(shape, opts) { super('ExtrudeGeometry', { shape, opts }); } },
+    BoxGeometry: class extends StubGeometry { constructor(...a) { super('BoxGeometry', a); } },
+    CylinderGeometry: class extends StubGeometry { constructor(...a) { super('CylinderGeometry', a); } },
+    PlaneGeometry: class extends StubGeometry { constructor(...a) { super('PlaneGeometry', a); } },
+    TorusGeometry: class extends StubGeometry { constructor(...a) { super('TorusGeometry', a); } },
+    Group: StubObject3D,
+    Mesh: StubMesh,
+    Vector3: StubVector3,
+    CatmullRomCurve3: StubCurve3,
+    CanvasTexture: class { constructor(canvas) { this.canvas = canvas; } },
+    SRGBColorSpace: 'srgb',
+    MeshStandardNodeMaterial: makeMat('standard'),
+    MeshPhysicalNodeMaterial: makeMat('physical'),
+    MeshBasicNodeMaterial: makeMat('basic')
+  };
+  const stubDoc = {
+    createElement: () => ({
+      width: 0,
+      height: 0,
+      getContext: () => ({
+        fillStyle: '',
+        strokeStyle: '',
+        lineWidth: 0,
+        font: '',
+        textAlign: '',
+        textBaseline: '',
+        fillRect() {},
+        strokeRect() {},
+        fillText() {}
+      })
+    })
+  };
+
+  const {
+    SEJONG_BUILDING_LAYOUT,
+    createOpenBookRoofGeometry,
+    createCivicArcGeometry,
+    buildSejongLandmarks
+  } = loadModule(read('js/sejong-landmarks.js'), {
+    imports: { 'three/webgpu': stubThree },
+    globals: { document: stubDoc }
+  });
+
+  // Custom architectural shapes produce valid curve/extrusion paths & UV/normal attributes
+  const bookGeo = createOpenBookRoofGeometry(56, 33, 1.35);
+  assert.equal(bookGeo.type, 'ExtrudeGeometry');
+  assert.ok(bookGeo.args.shape.ops.filter((op) => op[0] === 'Q').length >= 4, 'Open-book roof must have curved quadratic arches');
+  assert.ok(bookGeo.attributes.position && bookGeo.attributes.normal && bookGeo.attributes.uv);
+
+  const arcGeo = createCivicArcGeometry(30, 52, Math.PI * 0.12, Math.PI * 1.48, 21);
+  assert.equal(arcGeo.type, 'ExtrudeGeometry');
+  assert.ok(arcGeo.args.shape.ops.length >= 58, 'Circular civic ring should sample inner & outer arcs smoothly');
+
+  // Build Sejong landmarks and check colliders + batch exclusion set
+  const root = new StubObject3D();
+  const colliders = [];
+  const mats = {
+    limestoneTrimMat: { name: 'limestone' },
+    stainlessSteelMat: { name: 'steel' },
+    darkBronzeFrameMat: { name: 'bronze' },
+    warmFloodMat: { name: 'flood' },
+    landmarkSilverCurtainMat: { name: 'silverCurtain' },
+    landmarkBronzeCurtainMat: { name: 'bronzeCurtain' }
+  };
+  const exclude = buildSejongLandmarks(root, colliders, mats);
+
+  assert.equal(root.children.length, 6, 'Should mount all 6 Sejong landmark groups');
+  assert.equal(colliders.length, 9, 'Should register 9 ground footprint colliders');
+  assert.ok(exclude.has(mats.stainlessSteelMat), 'Stainless steel stays excluded from static batching');
+  assert.equal(exclude.size, 7, 'Should exclude steel, translucent glass cube, and 5 canvas signs from batching');
+
+  // Verify no teleport landing spot falls inside or within 3m of any Sejong collider
+  for (const [tpId, tp] of Object.entries(TELEPORT_LOCATIONS)) {
+    for (const c of colliders) {
+      const inside = tp.x >= c.minX - 3 && tp.x <= c.maxX + 3 && tp.z >= c.minZ - 3 && tp.z <= c.maxZ + 3;
+      assert.equal(inside, false, `Teleport ${tpId} (${tp.x}, ${tp.z}) overlaps collider [${c.minX}..${c.maxX}, ${c.minZ}..${c.maxZ}]`);
+    }
+  }
+
+  // Verify road-grid Sejong complex/PMO/CityHall footprints stay >= 4m clear of adjacent roadways
+  for (const key of ['complexNW', 'complexSW', 'complexNW2', 'complexNE', 'pmo', 'cityHall']) {
+    const lot = SEJONG_BUILDING_LAYOUT[key];
+    const samples = [
+      [lot.minX, lot.minZ], [lot.maxX, lot.minZ],
+      [lot.minX, lot.maxZ], [lot.maxX, lot.maxZ],
+      [lot.cx, lot.minZ], [lot.cx, lot.maxZ],
+      [lot.minX, lot.cz], [lot.maxX, lot.cz]
+    ];
+    for (const [sx, sz] of samples) {
+      for (const hit of nearestRoads(sx, sz, 30)) {
+        const clearance = hit.dist - hit.road.w * 0.5;
+        assert.ok(
+          clearance >= 4.0,
+          `${key} perimeter (${sx}, ${sz}) too close to ${hit.road.name}: clearance=${clearance.toFixed(1)}m`
+        );
+      }
+    }
+  }
+
+  // Verify skybridge spans maintain >= 17.5m vertical clearance above street level
+  for (const br of SEJONG_BUILDING_LAYOUT.skybridges) {
+    assert.ok(br.deckY >= 17.5, `Skybridge ${br.id} deckY ${br.deckY}m must clear street traffic`);
+    for (const [, py] of br.points) {
+      assert.ok(py >= 17.5, `Skybridge ${br.id} control point y=${py}m must stay >= 17.5m`);
+    }
+  }
+});
+

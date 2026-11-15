@@ -267,18 +267,18 @@ class CameraSystem {
       }
 
       case 'sejongComplex': {
-        // Government Complex Sejong along Dasom-ro & Hannuri-daero
+        // Government Complex Sejong skybridges & continuous rooftop garden over Dasom-ro
         const sway = Math.sin(elapsed * 0.2) * 4.0;
-        desiredPos.set(165.0 + sway, 32.0, -1330.0);
-        desiredLook.set(95.0, 12.0, -1180.0);
+        desiredPos.set(170.0 + sway, 36.0, -1325.0);
+        desiredLook.set(92.0, 16.0, -1205.0);
         break;
       }
 
       case 'sejongGovTower': {
-        // Prime Minister's Office & Sejong City Hall civic axis
+        // Sejong City Hall circular civic complex & Prime Minister's Office axis
         const sway = Math.cos(elapsed * 0.18) * 5.0;
-        desiredPos.set(340.0 + sway, 58.0, 4490.0);
-        desiredLook.set(380.0, 18.0, 4760.0);
+        desiredPos.set(428.0 + sway, 52.0, 4745.0);
+        desiredLook.set(565.0, 14.0, 4885.0);
         break;
       }
 
