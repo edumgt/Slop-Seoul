@@ -4,17 +4,22 @@ import { bryantParkLawn } from './landmarks.js';
 // Chase, action, cockpit, fixed-location and aerial cameras, with mouse/touch orbit and zoom.
 
 const CAMERA_PRESETS = [
-  { id: 'chase',       name: '3rd-Person Chase',         category: 'follow', fov: 56 },
-  { id: 'action',      name: 'Low-Angle Action',         category: 'follow', fov: 60 },
-  { id: 'pov',         name: 'First-Person / Cockpit',   category: 'follow', fov: 68 },
-  { id: 'centralPark', name: 'Central Park Oasis',       category: 'scenic', fov: 52 },
-  { id: 'fifthAve',    name: '5th Ave & Empire State',   category: 'scenic', fov: 48 },
-  { id: 'timesSquare', name: 'Times Square Crossroads',  category: 'scenic', fov: 58 },
-  { id: 'chryslerGCT', name: '42nd St · Chrysler & GCT', category: 'scenic', fov: 50 },
-  { id: 'observatory', name: 'Empire State 86th Deck',   category: 'scenic', fov: 52 },
-  { id: 'bryantPark',  name: 'Bryant Park & NYPL',       category: 'scenic', fov: 52 },
-  { id: 'waterfront',  name: 'East River & Skyline',     category: 'scenic', fov: 46 },
-  { id: 'drone',       name: 'Auto-Director Aerial',     category: 'scenic', fov: 50 }
+  { id: 'chase',          name: '3인칭 추적 (Chase)',        category: 'follow', city: 'all',    fov: 56 },
+  { id: 'action',         name: '로우앵글 액션 (Action)',    category: 'follow', city: 'all',    fov: 60 },
+  { id: 'pov',            name: '1인칭 운전석 (Cockpit)',   category: 'follow', city: 'all',    fov: 68 },
+  // Sejong City scenic viewpoints
+  { id: 'centralPark',    name: '세종호수공원 & 국립도서관', category: 'scenic', city: 'sejong', fov: 52 },
+  { id: 'sejongComplex',  name: '정부세종청사 · 다솜로',     category: 'scenic', city: 'sejong', fov: 50 },
+  { id: 'sejongGovTower', name: '국무총리실 & 시청대로',     category: 'scenic', city: 'sejong', fov: 48 },
+  { id: 'sejongDrone',    name: '세종시 행정타운 드론 뷰',    category: 'scenic', city: 'sejong', fov: 50 },
+  // Seoul Teheran-ro scenic viewpoints
+  { id: 'fifthAve',       name: '강남역 & 테헤란로 중심',    category: 'scenic', city: 'seoul',  fov: 48 },
+  { id: 'timesSquare',    name: '코엑스 K-POP 스퀘어',      category: 'scenic', city: 'seoul',  fov: 58 },
+  { id: 'chryslerGCT',    name: '한국무역센터 & 영동대로',   category: 'scenic', city: 'seoul',  fov: 50 },
+  { id: 'observatory',    name: 'GFC 타워 전망대',          category: 'scenic', city: 'seoul',  fov: 52 },
+  { id: 'bryantPark',     name: '포스코센터 & 선릉 도심숲',  category: 'scenic', city: 'seoul',  fov: 52 },
+  { id: 'waterfront',     name: '한강 · 탄천 워터프론트',    category: 'scenic', city: 'seoul',  fov: 46 },
+  { id: 'drone',          name: '서울 테헤란로 드론 뷰',     category: 'scenic', city: 'seoul',  fov: 50 }
 ];
 
 class CameraSystem {
@@ -254,10 +259,40 @@ class CameraSystem {
       }
 
       case 'centralPark': {
-        // Above the southern canopy, looking across The Pond toward the park and skyline.
+        // Overlooking Sejong Lake Park, National Library of Sejong, and Presidential Archives
         const sway = Math.sin(elapsed * 0.22) * 3.5;
-        desiredPos.set(-70.0 + sway, 26.0, -1425.0);
-        desiredLook.set(-250.0, 6.5, -1690.0);
+        desiredPos.set(6.0 + sway, 22.0, -2388.0);
+        desiredLook.set(-140.0, 14.0, -2435.0);
+        break;
+      }
+
+      case 'sejongComplex': {
+        // Government Complex Sejong along Dasom-ro & Hannuri-daero
+        const sway = Math.sin(elapsed * 0.2) * 4.0;
+        desiredPos.set(165.0 + sway, 32.0, -1330.0);
+        desiredLook.set(95.0, 12.0, -1180.0);
+        break;
+      }
+
+      case 'sejongGovTower': {
+        // Prime Minister's Office & Sejong City Hall civic axis
+        const sway = Math.cos(elapsed * 0.18) * 5.0;
+        desiredPos.set(340.0 + sway, 58.0, 4490.0);
+        desiredLook.set(380.0, 18.0, 4760.0);
+        break;
+      }
+
+      case 'sejongDrone': {
+        // Aerial orbit over Sejong Lake Park & Government Complex Sejong
+        const angle = elapsed * 0.065 + 0.4;
+        const radius = 580.0 + Math.sin(elapsed * 0.21) * 110.0;
+        const alt = 260.0 + Math.cos(elapsed * 0.17) * 65.0;
+        desiredPos.set(
+          Math.cos(angle) * radius - 40.0,
+          alt,
+          Math.sin(angle) * radius - 1850.0
+        );
+        desiredLook.set(-40.0, 45.0, -1850.0);
         break;
       }
 

@@ -78,24 +78,62 @@ const MODELLED_LANDMARKS = [
   'Flatiron Building', 'One World Trade Center', 'New York Stock Exchange'
 ];
 
-// Borough (0), waterway (1) & neighbourhood (2) names at their real places (world metres)
+const DEFAULT_CITY_VIEWS = {
+  sejong: {
+    id: 'sejong',
+    name: '세종특별자치시',
+    placeholder: '한누리대로, 다솜로, 정부세종청사, 국립세종도서관 검색…',
+    center: { x: -40, z: -1850, zoom: 0.24 }
+  },
+  seoul: {
+    id: 'seoul',
+    name: '서울특별시',
+    placeholder: '테헤란로, 강남대로, 포스코센터, 코엑스 검색…',
+    center: { x: 80, z: 120, zoom: 0.28 }
+  }
+};
+
+// District (0), waterway (1) & neighbourhood (2) names at their real places (world metres, tagged by city)
 const AREA_LABELS = [
-  ['강남 테헤란밸리 (TEHERAN VALLEY)', 120, -1500, 0], ['서초구 (SEOCHO-GU)', -7000, 2000, 0], ['송파구 (SONGPA-GU)', 7850, 8780, 0], ['광진구 (GWANGJIN-GU)', 8810, -1680, 0],
-  ['성동구 (SEONGDONG-GU)', 1010, -9640, 0], ['강남구 (GANGNAM-GU)', -1800, 19220, 0],
-  ['한강 (HANGANG RIVER)', -2680, -300, 1], ['한강 시민공원', -2650, -5600, 1], ['탄천 (TANCHEON STREAM)', 1700, 800, 1],
-  ['양재천 (YANGJAECHEON)', 220, -7930, 1], ['잠실 한강 마리나', 130, 10530, 1],
-  ['신사동 가로수길', -320, -6750, 2], ['압구정 로데오거리', -1600, -6160, 2], ['청담동 명품거리', 830, -5820, 2],
-  ['논현동 영동시장', -1410, -3070, 2], ['선정릉 도심 왕릉공원', -430, -3280, 2], ['삼성동 코엑스 MICE', 590, -2680, 2],
-  ['봉은사 불교문화원', 1810, -2030, 2], ['역삼 벤처 스타트업존', -1350, -590, 2], ['테헤란로 금융타운', 100, -500, 2],
-  ['선릉 테크 밸리', 680, 330, 2], ['포스코사거리 금융센터', -1510, 770, 2], ['강남역 2호선 상권', -1030, 1650, 2],
-  ['양재 R&D 혁신허브', 330, 1660, 2], ['서초 법조타운', -540, 2830, 2], ['도곡 타워팰리스 존', 1250, 2800, 2],
-  ['대치동 학원가', 200, 3560, 2], ['개포 디지털혁신파크', 1690, 3760, 2], ['수서 복합환승센터', -140, 4460, 2], ['일원 생태마을', 850, 4420, 2],
-  ['잠실 종합운동장', -370, 5540, 2], ['롯데월드타워 금융존', 455, 5715, 2], ['올림픽공원', 795, 7685, 2],
-  ['가락시장 현대화몰', -1234, 8849, 2], ['문정 법조단지', -1427, 7648, 2], ['위례 신도시', 2268, -6301, 2],
-  ['성수 IT밸리', -1690, -10270, 2], ['뚝섬 한강공원', 2570, 6280, 2], ['서울숲 복합문화지구', 3670, 2980, 2],
-  ['자양동 한강지구', 3305, 1277, 2], ['구의 첨단업무지구', 2865, -473, 2], ['군자 교통거점', 3345, -3699, 2],
-  ['반포 한강 서래섬', -3293, 3032, 2], ['방배 카페골목', -2671, 6014, 2], ['사당 환승역세권', -3670, 193, 2], ['과천 지식정보타운', -4456, -9911, 2],
-  ['분당 판교 테크노밸리', 2005, 8855, 2], ['성남 모란거점', -5284, 13699, 2]
+  ['세종특별자치시 행정중심도시 (SEJONG CITY)', -240, -2450, 0, 'sejong'],
+  ['강남 테헤란밸리 (TEHERAN VALLEY)', 120, -450, 0, 'seoul'],
+  ['서초구 (SEOCHO-GU)', -7000, 2000, 0, 'seoul'],
+  ['송파구 (SONGPA-GU)', 7850, 8780, 0, 'seoul'],
+  ['광진구 (GWANGJIN-GU)', 8810, -1680, 0, 'seoul'],
+  ['성동구 (SEONGDONG-GU)', 1010, -9640, 0, 'seoul'],
+  ['보람동 세종행정타운', 450, 4800, 0, 'sejong'],
+  ['금강 (GEUMGANG RIVER)', -2680, -300, 1, 'sejong'],
+  ['한강 (HANGANG RIVER)', -2680, -300, 1, 'seoul'],
+  ['세종호수공원 (SEJONG LAKE)', -360, -2420, 1, 'sejong'],
+  ['탄천 (TANCHEON STREAM)', 1700, 800, 1, 'seoul'],
+  ['양재천 (YANGJAECHEON)', 220, -7930, 1, 'seoul'],
+  ['잠실 한강 마리나', 130, 10530, 1, 'seoul'],
+  ['도담동 보듬로 행정타운', -320, -4600, 2, 'sejong'],
+  ['어진동 정부세종청사 (GOV. COMPLEX)', 120, -1250, 2, 'sejong'],
+  ['국립세종도서관 · 대통령기록관', -190, -2450, 2, 'sejong'],
+  ['한누리대로 세종 BRT 중심축', -1380, -2380, 2, 'sejong'],
+  ['국무총리실 · 기획재정부', 260, 4580, 2, 'sejong'],
+  ['세종시청 · 교육청 (보람동)', 470, 4820, 2, 'sejong'],
+  ['국책연구원 단지 (KDI)', -120, 5650, 2, 'sejong'],
+  ['새롬동 · 나성동 행정주거지', -1350, -3650, 2, 'sejong'],
+  ['논현동 영동시장', -1410, -3070, 2, 'seoul'],
+  ['선정릉 도심 왕릉공원', -430, -3280, 2, 'seoul'],
+  ['삼성동 코엑스 MICE', 590, -2680, 2, 'seoul'],
+  ['봉은사 불교문화원', 1810, -2030, 2, 'seoul'],
+  ['역삼 벤처 스타트업존', -1350, -590, 2, 'seoul'],
+  ['테헤란로 금융타운', 100, -500, 2, 'seoul'],
+  ['선릉 테크 밸리', 680, 330, 2, 'seoul'],
+  ['포스코사거리 금융센터', -1510, 770, 2, 'seoul'],
+  ['강남역 2호선 상권', -1030, 1650, 2, 'seoul'],
+  ['양재 R&D 혁신허브', 330, 1660, 2, 'seoul'],
+  ['서초 법조타운', -540, 2830, 2, 'seoul'],
+  ['도곡 타워팰리스 존', 1250, 2800, 2, 'seoul'],
+  ['대치동 학원가', 200, 3560, 2, 'seoul'],
+  ['개포 디지털혁신파크', 1690, 3760, 2, 'seoul'],
+  ['수서 복합환승센터', -140, 4460, 2, 'seoul'],
+  ['잠실 종합운동장', -370, 5540, 2, 'seoul'],
+  ['롯데월드타워 금융존', 455, 5715, 2, 'seoul'],
+  ['올림픽공원', 795, 7685, 2, 'seoul']
 ];
 
 // Shorter map names for a few real street names
@@ -426,12 +464,14 @@ function drawWaypoint(ctx, x, y, r) {
 const overlaps = (boxes, b) => boxes.some((o) => b[0] < o[2] && b[2] > o[0] && b[1] < o[3] && b[3] > o[1]);
 
 class NYCMapSystem {
-  constructor({ controllerManager, cameraSystem, allBlocks = [], onTeleport, onToggle }) {
+  constructor({ controllerManager, cameraSystem, allBlocks = [], activeCity = 'sejong', onTeleport, onToggle, onCityChange }) {
     this.controllerManager = controllerManager;
     this.cameraSystem = cameraSystem;
     this.allBlocks = allBlocks;
+    this.activeCity = activeCity === 'seoul' ? 'seoul' : 'sejong';
     this.onTeleport = onTeleport;
     this.onToggle = onToggle;
+    this.onCityChange = onCityChange;
 
     this.miniCanvas = document.getElementById('minimap-canvas');
     this.miniCtx = this.miniCanvas ? this.miniCanvas.getContext('2d') : null;
@@ -440,7 +480,7 @@ class NYCMapSystem {
     this.miniScale = RADAR_SCALE;
     this.miniCache = null; // { canvas, cx, cz, s, version }: the radar's ground layers, twice the radar's size
     const elCounts = document.getElementById('fullmap-counts');
-    if (elCounts) elCounts.textContent = `${ROAD_NAME_COUNT} streets · ${BLOCKS.length.toLocaleString('en-US')} blocks`;
+    if (elCounts) elCounts.textContent = `${ROAD_NAME_COUNT}개 도로 · ${BLOCKS.length.toLocaleString('en-US')} 블록`;
 
     // The map is drawn grid north up; the compass needle points to true north, 29° to its left
     const needle = document.getElementById('map-compass-needle');
@@ -456,13 +496,13 @@ class NYCMapSystem {
     this.elHoverInfo = document.getElementById('fullmap-hover-info');
     this.elPlayerInfo = document.getElementById('fullmap-player-info');
     this.elSearchInput = document.getElementById('fullmap-search');
-    if (this.elSearchInput) this.elSearchInput.placeholder = `Search ${ROAD_NAME_COUNT} streets & landmarks…`;
+    this.cityButtons = [...document.querySelectorAll('.fullmap-city-btn')];
 
     this.isFullMapOpen = false;
     // Full map viewport state (world metres; zoom in CSS pixels per metre)
-    this.viewCenterX = 0;
-    this.viewCenterZ = 0;
-    this.viewZoom = 0.22;
+    this.viewCenterX = DEFAULT_CITY_VIEWS[this.activeCity].center.x;
+    this.viewCenterZ = DEFAULT_CITY_VIEWS[this.activeCity].center.z;
+    this.viewZoom = DEFAULT_CITY_VIEWS[this.activeCity].center.zoom;
     this.isPanning = false;
     this.panPointerId = null;
     this.panStart = { x: 0, y: 0, cx: 0, cz: 0 };
@@ -471,9 +511,10 @@ class NYCMapSystem {
     this.searchHighlight = '';
     this.searchPath = null;
     this.textWidths = new Map();
-    // Start with a waypoint at Times Square / Broadway.
-    const ts = NYC_LANDMARKS.find((l) => l.id === 'timessquare') || { x: 0, z: 0 };
-    this.waypoint = { x: ts.x, z: ts.z, name: 'Times Square & 42nd St' };
+    // Default waypoint matched to active city
+    const defaultLmId = this.activeCity === 'seoul' ? 'esb' : 'sejong_complex';
+    const ts = NYC_LANDMARKS.find((l) => l.id === defaultLmId) || NYC_LANDMARKS[0] || { x: 0, z: 0 };
+    this.waypoint = { x: ts.x, z: ts.z, name: ts.name || '정부세종청사 · 다솜로' };
 
     // Street names measured before the web font arrived would be spaced for the fallback font: measure & draw again
     if (document.fonts) {
@@ -484,7 +525,24 @@ class NYCMapSystem {
       });
     }
 
+    this.setActiveCity(this.activeCity, false);
     this.initEvents();
+  }
+
+  setActiveCity(cityId, focusMap = true) {
+    this.activeCity = cityId === 'seoul' ? 'seoul' : 'sejong';
+    const cfg = DEFAULT_CITY_VIEWS[this.activeCity];
+    this.cityButtons.forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute('data-map-city') === this.activeCity);
+    });
+    if (this.elSearchInput) this.elSearchInput.placeholder = cfg.placeholder;
+    this.fullStaticKey = '';
+    if (focusMap) {
+      this.viewCenterX = cfg.center.x;
+      this.viewCenterZ = cfg.center.z;
+      this.viewZoom = cfg.center.zoom;
+      if (this.isFullMapOpen) this.renderFullMap();
+    }
   }
 
   initEvents() {
@@ -501,6 +559,13 @@ class NYCMapSystem {
     if (closeBtn) {
       closeBtn.addEventListener('click', () => this.toggleFullMap(false));
     }
+    this.cityButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const city = btn.getAttribute('data-map-city');
+        this.setActiveCity(city, true);
+        if (this.onCityChange) this.onCityChange(city);
+      });
+    });
 
     if (zoomInBtn) {
       zoomInBtn.addEventListener('click', () => {
@@ -646,7 +711,9 @@ class NYCMapSystem {
     this.searchHighlight = q;
     this.searchPath = null;
     if (q.length > 0) {
-      const lmMatch = NYC_LANDMARKS.find((l) => l.name.toLowerCase().includes(q) || l.short.toLowerCase().includes(q));
+      const cityLandmarks = NYC_LANDMARKS.filter((l) => !l.city || l.city === this.activeCity);
+      const lmMatch = cityLandmarks.find((l) => l.name.toLowerCase().includes(q) || l.short.toLowerCase().includes(q))
+        || NYC_LANDMARKS.find((l) => l.name.toLowerCase().includes(q) || l.short.toLowerCase().includes(q));
       const roads = ROAD_LABELS.filter((l) => l.lower.includes(q) || l.raw.includes(q));
       if (roads.length) {
         this.searchPath = new Path2D();
@@ -1082,16 +1149,17 @@ class NYCMapSystem {
 
     const ent = this.controllerManager.getActiveEntity();
     if (this.elPlayerInfo) {
-      const text = `You are at ${getLocationLabel(ent.position.x, ent.position.z)}`;
+      const cfg = DEFAULT_CITY_VIEWS[this.activeCity];
+      const text = `${cfg.name} · 현재 위치: ${getLocationLabel(ent.position.x, ent.position.z, this.activeCity)}`;
       if (text !== this.playerInfoText) {
         this.playerInfoText = text;
         this.elPlayerInfo.textContent = text;
       }
     }
 
-    // Ground layers, names & landmark pins: re-rendered only when the view, the search or the buildings change
+    // Ground layers, names & landmark pins: re-rendered only when the view, the search, the city or the buildings change
     const fp = footprintLayers(this.allBlocks);
-    const key = `${v.cx}|${v.cz}|${v.s}|${this.fullCanvas.width}|${this.fullCanvas.height}|${this.searchHighlight}|${fp ? fp.version : 0}`;
+    const key = `${this.activeCity}|${v.cx}|${v.cz}|${v.s}|${this.fullCanvas.width}|${this.fullCanvas.height}|${this.searchHighlight}|${fp ? fp.version : 0}`;
     if (!this.fullStatic) this.fullStatic = document.createElement('canvas');
     if (key !== this.fullStaticKey) {
       this.fullStaticKey = key;
@@ -1160,6 +1228,7 @@ class NYCMapSystem {
     const placed = [];
     const pins = [];
     for (const lm of NYC_LANDMARKS) {
+      if (lm.city && lm.city !== this.activeCity) continue;
       const lx = toX(lm.x);
       const ly = toY(lm.z);
       if (Math.abs(lx) > w * 0.48 || Math.abs(ly) > h * 0.48) continue;
@@ -1175,7 +1244,8 @@ class NYCMapSystem {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const tracking = 'letterSpacing' in ctx;
-    for (const [label, x, z, kind] of AREA_LABELS) {
+    for (const [label, x, z, kind, city] of AREA_LABELS) {
+      if (city && city !== this.activeCity) continue;
       if (kind === 0 && s > 0.07) continue;
       if (kind === 2 && (s < 0.035 || s > 1.2)) continue;
       const dx = toX(x);

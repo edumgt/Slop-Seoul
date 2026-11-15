@@ -48,25 +48,25 @@ const PRETTY = {
   '11 AVE': '서초중앙로 (Seochojungang-ro)',
   'AMSTERDAM AVE': '사평대로 (Sapyeong-daero)',
   '10 AVE': '반포대로 (Banpo-daero)',
-  'COLUMBUS AVE': '신사스퀘어길',
+  'COLUMBUS AVE': '가름로 (어진동)',
   '9 AVE': '효령로 (Hyoryeong-ro)',
   'MANHATTAN AVE': '테헤란로 테크웨이',
-  'FREDERICK DOUGLASS BLVD': '압구정로 (Apgujeong-ro)',
-  'CENTRAL PARK W': '선정릉둘레길 (Seolleung-gil)',
+  'FREDERICK DOUGLASS BLVD': '누리로 (세종 관공서길)',
+  'CENTRAL PARK W': '호수공원서로 (Sejong Lake West)',
   '8 AVE': '서초대로 (Seocho-daero)',
-  'ADAM CLAYTON POWELL JR BLVD': '도산대로 (Dosan-daero)',
-  '7 AVE': '강남대로 (Gangnam-daero · 강남역)',
+  'ADAM CLAYTON POWELL JR BLVD': '보듬로 (도담 행정타운)',
+  '7 AVE': '강남대로 (강남역)',
   'LENOX AVE': '학동로 (Hakdong-ro)',
-  'MALCOLM X BLVD': '논현로 (Nonhyeon-ro)',
-  'AVE OF THE AMERICAS': '논현로 (Nonhyeon-ro · 역삼역)',
-  '5 AVE': '언주로 (Eonju-ro · 테헤란로 중심)',
-  'MADISON AVE': '테헤란로 중심길',
-  'PARK AVE': '선릉로 (Seolleung-ro · 선릉역)',
+  'MALCOLM X BLVD': '다솜로 (국무총리실)',
+  'AVE OF THE AMERICAS': '논현로 (역삼역)',
+  '5 AVE': '언주로 (테헤란로 중심)',
+  'MADISON AVE': '테헤란로 (정부청사 중심축)',
+  'PARK AVE': '선릉로 (선릉역)',
   'PARK AVE S': '선릉남로 (Seolleung-namro)',
-  'LEXINGTON AVE': '삼성로 (Samseong-ro · 포스코사거리)',
-  '3 AVE': '영동대로 (Yeongdong-daero · 삼성역 & 코엑스)',
+  'LEXINGTON AVE': '삼성로 (포스코사거리)',
+  '3 AVE': '영동대로 (삼성역·코엑스)',
   '2 AVE': '탄천동로 (Tancheon-dongro)',
-  '1 AVE': '올림픽로 (Olympic-ro · 잠실)',
+  '1 AVE': '올림픽로 (잠실)',
   'YORK AVE': '잠실대교 방면 (Jamsil)',
   'SUTTON PL': '탄천수변길',
   'PLEASANT AVE': '영동대교 북단',
@@ -79,7 +79,32 @@ const PRETTY = {
   'UNIVERSITY PL': '역삼문화길',
   'IRVING PL': '포스코아트길',
   'RIVERSIDE DR': '올림픽대로 (Olympic-daero)',
-  'ST NICHOLAS AVE': '도산대로 (Dosan-daero)'
+  'ST NICHOLAS AVE': '갈매로 (세종청사)',
+  'BROADWAY': '한누리대로 (세종 BRT)',
+  'CENTRAL PARK S': '세종호수남로 (Sejong Lake South)',
+  'CATHEDRAL PKWY': '세종호수북로 (Sejong Lake North)',
+  'WORTH ST': '절재로 (정부세종청사)',
+  'CHAMBERS ST': '다솜로 (국무조정실)',
+  'CENTRE ST': '도움6로 (행안부·국토부)',
+  'LAFAYETTE ST': '한누리대로 (관공서 중심)',
+  'PARK ROW': '도움3로 (기획재정부)',
+  'CHURCH ST': '갈매로 (교육부·복지부)',
+  'NASSAU ST': '시청대로 (세종시청)',
+  'READE ST': '시청대로 (세종시의회)',
+  'FULTON ST': '도움8로 (과기정통부)',
+  'BROAD ST': '국책연구원로 (KDI·경제인문사회)',
+  'WALL ST': '국책연구원로 (KDI·국토연구원)',
+  'CANAL ST': '어울림로 (세종호수·도서관)',
+  'DELANCEY ST': '금강수변대로 (Geumgang Riverside)',
+  'GRAND ST': '새롬중앙로 (Saerom-jungangro)',
+  'E  HOUSTON ST': '어진중앙로 (Eojin-jungangro)',
+  'W  HOUSTON ST': '어진서로 (Eojin-seoro)',
+  'BLEECKER ST': '나성로 (정부청사 남단)',
+  'SPRING ST': '보람로 (세종시청길)',
+  'PRINCE ST': '가름로 (Gareum-ro)',
+  'LIBERTY ST': '법원검찰로 (세종지방법원·검찰청)',
+  'WATER ST': '보람동 관공서길 (Boram Civic Rd)',
+  'SOUTH ST': '금강 한두리수변로 (Geumgang Riverside)'
 };
 function prettyName(n) {
   if (PRETTY[n]) return PRETTY[n];
@@ -95,6 +120,21 @@ function prettyName(n) {
     if (num === 45) return '테헤란로 IT타운길';
     if (num === 38) return '테헤란로 역삼길';
     if (num === 28) return '논현로 이면길';
+    // Sejong Special Self-Governing City — Government-Complex-Centered Streets
+    if (num === 57) return '다솜로 (정부세종청사)';
+    if (num === 59) return '절재로 (정부청사 남단)';
+    if (num === 65 || num === 66) return '도움6로 (행안부·국토부)';
+    if (num === 72) return '국립도서관길 (세종호수공원)';
+    if (num === 79) return '도움3로 (기재부·산업부)';
+    if (num === 86) return '갈매로 (세종시교육청)';
+    if (num === 96) return '보듬로 (도담 행정타운)';
+    if (num === 110) return '세종호수북로 (Sejong Lake North)';
+    if (num === 116) return '나성로 (어진동 관공서)';
+    if (num === 125) return '한누리대로 북단 (Hannuri BRT North)';
+    if (num >= 50 && num <= 56) return `도움${num - 49}로 (정부세종청사)`;
+    if (num >= 60) return `세종 관공서 ${num}길 (Sejong Gov ${num}-gil)`;
+    if (num === 14) return '시청대로 (세종시청)';
+    if (num >= 1 && num <= 22) return `세종 행정 ${num}길 (Sejong Civic ${num}-gil)`;
     return `테헤란로 ${num}길 (Teheran ${num}-gil)`;
   }
   return n.replace(/\s+/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
@@ -143,12 +183,12 @@ const coreAve = (id, name, extra = {}) => {
 };
 const AVENUES = [
   coreAve('8', '서초대로 (Seocho-daero)'),
-  coreAve('7', '강남대로 (Gangnam-daero · 강남역)', { isTimesSquare: true }),
-  coreAve('6', '논현로 (Nonhyeon-ro · 역삼역)'),
-  coreAve('5', '언주로 (Eonju-ro · 테헤란로 중심)'),
-  coreAve('park', '선릉로 (Seolleung-ro · 선릉역)', { dir: 0, hasMedian: true, width: 33 }),
-  coreAve('lex', '삼성로 (Samseong-ro · 포스코사거리)'),
-  coreAve('3', '영동대로 (Yeongdong-daero · 삼성역 & 코엑스)')
+  coreAve('7', '강남대로 (강남역)', { isTimesSquare: true }),
+  coreAve('6', '논현로 (역삼역)'),
+  coreAve('5', '언주로 (테헤란로 중심)'),
+  coreAve('park', '선릉로 (선릉역)', { dir: 0, hasMedian: true, width: 33 }),
+  coreAve('lex', '삼성로 (포스코사거리)'),
+  coreAve('3', '영동대로 (삼성역·코엑스)')
 ];
 const coreSt = (n, name, extra = {}) => {
   const s = STREET_BY_NUMBER.get(n);
@@ -611,7 +651,85 @@ for (const b of BLOCKS) b.district = districtAt(b.cx, b.cz);
 const LANDMARK_SITES = GEO.landmarks;
 // Street-level arrivals shared by every travel mode. Heading 0 faces south (+z), PI north.
 const owtc = LANDMARK_SITES['One World Trade Center'];
+const SEJONG_GOV_ROADS = [
+  { id: 'hannuri', name: '한누리대로 (Hannuri-daero · 세종 BRT)', zone: '어진동·정부청사 순환축', ministries: ['정부세종청사 전체', '세종시청', 'BRT 바로타 전용차로'] },
+  { id: 'dasom', name: '다솜로 (Dasom-ro · 정부세종청사)', zone: '정부세종청사 북측', ministries: ['국무총리실', '국무조정실', '공정거래위원회'] },
+  { id: 'jeoljae', name: '절재로 (Jeoljae-ro · 정부세종청사)', zone: '정부세종청사 중앙', ministries: ['행정안전부', '국토교통부', '해양수산부'] },
+  { id: 'doum6', name: '도움6로 (Doum 6-ro · 행안부·국토부)', zone: '청사 중앙 교차축', ministries: ['국토교통부', '농림축산식품부', '환경부'] },
+  { id: 'doum3', name: '도움3로 (Doum 3-ro · 기재부·산업부)', zone: '청사 서측', ministries: ['기획재정부', '산업통상자원부', '보건복지부'] },
+  { id: 'doum8', name: '도움8로 (Doum 8-ro · 과기정통부)', zone: '청사 남동측', ministries: ['과학기술정보통신부', '문화체육관광부', '교육부'] },
+  { id: 'galmae', name: '갈매로 (Galmae-ro · 세종시교육청)', zone: '어울림로·보람동', ministries: ['세종시교육청', '국립세종도서관', '대통령기록관'] },
+  { id: 'sicheong', name: '시청대로 (Sicheong-daero · 세종시청)', zone: '보람동 행정타운', ministries: ['세종특별자치시청', '세종특별자치시의회', '법원·검찰청'] }
+];
+
+const CITY_REGIONS = {
+  sejong: {
+    id: 'sejong',
+    name: '세종특별자치시',
+    shortName: '세종시',
+    badge: '세종',
+    brandTitle: 'Slop Korea · 세종특별자치시',
+    subtitle: '정부세종청사 · 한누리대로 · 세종호수공원',
+    defaultTeleport: 'sejong_complex',
+    trafficCorridor: '세종청사 · 한누리대로',
+    mapCenter: { x: -40, z: -1850, zoom: 0.24 },
+    waterfrontWest: '금강 한두리 수변공원',
+    waterfrontEast: '금강 · 세종보 수변공원',
+    parkLabel: '세종호수공원 & 국립세종도서관',
+    fallbackLabel: '세종특별자치시 (Sejong City)'
+  },
+  seoul: {
+    id: 'seoul',
+    name: '서울특별시',
+    shortName: '서울시',
+    badge: '서울',
+    brandTitle: 'Slop Korea · 서울 테헤란로',
+    subtitle: '강남 테헤란로 · 삼성역 COEX · 한강',
+    defaultTeleport: 'empire',
+    trafficCorridor: '테헤란로 · 강남대로',
+    mapCenter: { x: 80, z: 120, zoom: 0.28 },
+    waterfrontWest: '한강 반포 수변공원',
+    waterfrontEast: '한강 · 탄천 수변공원',
+    parkLabel: '선정릉 도심 왕릉공원',
+    fallbackLabel: '서울특별시 테헤란로 (Seoul)'
+  }
+};
+
+function getCityRegion(cityId) {
+  return CITY_REGIONS[cityId] || CITY_REGIONS.sejong;
+}
+
+const TELEPORT_CITY_MAP = {
+  sejong_complex: 'sejong',
+  sejong_library: 'sejong',
+  sejong_brt: 'sejong',
+  sejong_pmo: 'sejong',
+  sejong_cityhall: 'sejong',
+  empire: 'seoul',
+  timessq: 'seoul',
+  chrysler: 'seoul',
+  grandcentral: 'seoul',
+  bryant: 'seoul',
+  flatiron: 'seoul',
+  centralpark: 'sejong',
+  owtc: 'seoul'
+};
+
+function inferCityFromCoords(x, z) {
+  if ((z >= -5600 && z <= -1050) || (z >= 4500 && z <= 5050 && x >= 100 && x <= 750)) {
+    return 'sejong';
+  }
+  return 'seoul';
+}
+
 const TELEPORT_LOCATIONS = {
+  // Sejong City Government-Complex-Centered Destinations
+  sejong_complex: { x: avenueX('madison') + 3.6, z: streetZ(57), heading: Math.PI },
+  sejong_library: { x: avenueX('5') + 3.6, z: streetZ(72), heading: Math.PI * 0.5 },
+  sejong_brt: { x: getBroadwayX(streetZ(72)), z: streetZ(72), heading: Math.PI },
+  sejong_pmo: { x: 257.9, z: 4581.2, heading: 0 },
+  sejong_cityhall: { x: 468.6, z: 4798.9, heading: 0 },
+  // Seoul Teheran-ro Destinations
   empire: { x: avenueX('5') + 3.6, z: streetZ(36), heading: 0 },
   timessq: { x: avenueX('7') + 3.6, z: streetZ(46), heading: 0 },
   chrysler: { x: avenueX('lex') + 3.6, z: streetZ(40), heading: Math.PI },
@@ -624,27 +742,44 @@ const TELEPORT_LOCATIONS = {
 };
 const site = (name, fallback) => LANDMARK_SITES[name] || fallback;
 const NYC_LANDMARKS = [
-  ['esb', '강남파이낸스센터 (GFC)', 'GFC 역삼', 'Empire State Building', '역삼 테크밸리'],
-  ['chrysler', '한국종합무역센터 (Trade Tower)', '무역센터', 'Chrysler Building', '삼성 MICE 지구'],
-  ['gct', '코엑스 & 현대 GBC (COEX)', '코엑스', 'Grand Central Terminal', '삼성 영동대로'],
-  ['vanderbilt', '파르나스타워 (Parnas Tower)', '파르나스', 'One Vanderbilt', '삼성역'],
-  ['timessquare', '코엑스 K-POP 스퀘어', 'K-POP 스퀘어', 'One Times Square', '영동대로 미디어'],
-  ['bryantpark', '선릉역 벤처밸리 (Seolleung)', '선릉역', 'Stephen A. Schwarzman Building', '선릉 테헤란로'],
-  ['rockefeller', '포스코센터 (Posco Center)', '포스코센터', '30 Rockefeller Plaza', '포스코사거리'],
-  ['citigroup', '테헤란로 스타트업 허브', '스타트업 허브', 'Citigroup Center', '역삼동'],
-  ['seagram', '아셈타워 (ASEM Tower)', '아셈타워', 'Seagram Building', '봉은사로'],
-  ['flatiron', '강남역 GT타워 (GT Tower)', '강남역 GT타워', 'Flatiron Building', '강남역 사거리'],
-  ['owtc', '한강 탄천 합수부 타워', '한강 전망대', 'One World Trade Center', '한강 워터프론트'],
-  ['wallst', '테헤란 금융밸리 (Finance Valley)', '테헤란 금융', 'New York Stock Exchange', '테헤란로']
-].map(([id, name, short, osm, district]) => {
+  ['esb', '강남파이낸스센터 (GFC)', 'GFC 역삼', 'Empire State Building', '역삼 테크밸리', 'seoul'],
+  ['chrysler', '한국종합무역센터 (Trade Tower)', '무역센터', 'Chrysler Building', '삼성 MICE 지구', 'seoul'],
+  ['gct', '코엑스 & 현대 GBC (COEX)', '코엑스', 'Grand Central Terminal', '삼성 영동대로', 'seoul'],
+  ['vanderbilt', '파르나스타워 (Parnas Tower)', '파르나스', 'One Vanderbilt', '삼성역', 'seoul'],
+  ['timessquare', '코엑스 K-POP 스퀘어', 'K-POP 스퀘어', 'One Times Square', '영동대로 미디어', 'seoul'],
+  ['bryantpark', '선릉역 벤처밸리 (Seolleung)', '선릉역', 'Stephen A. Schwarzman Building', '선릉 테헤란로', 'seoul'],
+  ['rockefeller', '포스코센터 (Posco Center)', '포스코센터', '30 Rockefeller Plaza', '포스코사거리', 'seoul'],
+  ['citigroup', '테헤란로 스타트업 허브', '스타트업 허브', 'Citigroup Center', '역삼동', 'seoul'],
+  ['seagram', '아셈타워 (ASEM Tower)', '아셈타워', 'Seagram Building', '봉은사로', 'seoul'],
+  ['flatiron', '강남역 GT타워 (GT Tower)', '강남역 GT타워', 'Flatiron Building', '강남역 사거리', 'seoul'],
+  ['owtc', '한강 탄천 합수부 타워', '한강 전망대', 'One World Trade Center', '한강 워터프론트', 'seoul'],
+  ['wallst', '테헤란 금융밸리 (Finance Valley)', '테헤란 금융', 'New York Stock Exchange', '테헤란로', 'seoul']
+].map(([id, name, short, osm, district, city]) => {
   const s = site(osm, { x: 0, z: 0 });
-  return { id, name, short, x: s.x, z: s.z, district };
+  return { id, name, short, x: s.x, z: s.z, district, city };
 });
 NYC_LANDMARKS.push(
-  { id: 'centralpark', name: '선정릉 도심 숲 (Seolleung Royal Park)', short: '선정릉', x: -560, z: -2630, district: '선정릉 공원' },
-  { id: 'brooklynbr', name: '영동대교 (Yeongdong Bridge)', short: '영동대교', x: EAST_RIVER_BRIDGES[3].a.x + 700, z: EAST_RIVER_BRIDGES[3].a.z + 200, district: '한강' },
-  { id: 'queensborobr', name: '청담대교 (Cheongdam Bridge)', short: '청담대교', x: 1500, z: -1410, district: '한강' }
+  { id: 'sejong_complex', name: '정부세종청사 (Government Complex Sejong)', short: '정부세종청사', x: 159, z: -1204, district: '세종 어진동', city: 'sejong' },
+  { id: 'sejong_library', name: '국립세종도서관 (National Library of Sejong)', short: '국립세종도서관', x: -110, z: -2430, district: '세종호수공원', city: 'sejong' },
+  { id: 'sejong_archives', name: '대통령기록관 (Presidential Archives)', short: '대통령기록관', x: -265, z: -2465, district: '세종호수공원', city: 'sejong' },
+  { id: 'sejong_pmo', name: '국무총리실 & 청사타운 (Prime Minister\'s Office)', short: '국무총리실', x: 258, z: 4581, district: '세종 행정타운', city: 'sejong' },
+  { id: 'sejong_cityhall', name: '세종특별자치시청 & 의회 (Sejong City Hall)', short: '세종시청', x: 469, z: 4799, district: '세종 보람동', city: 'sejong' },
+  { id: 'centralpark', name: '세종호수공원 (Sejong Lake Park)', short: '세종호수공원', x: -560, z: -2630, district: '세종호수공원', city: 'sejong' },
+  { id: 'brooklynbr', name: '금강 한두리대교 방면 (Handuri Bridge)', short: '금강 한두리대교', x: EAST_RIVER_BRIDGES[3].a.x + 700, z: EAST_RIVER_BRIDGES[3].a.z + 200, district: '세종 금강', city: 'sejong' },
+  { id: 'queensborobr', name: '청담대교 (Cheongdam Bridge)', short: '청담대교', x: 1500, z: -1410, district: '서울 한강', city: 'seoul' }
 );
+
+function getCityLandmarks(cityId) {
+  const id = getCityRegion(cityId).id;
+  return NYC_LANDMARKS.filter((lm) => !lm.city || lm.city === id);
+}
+
+function getCityTeleports(cityId) {
+  const id = getCityRegion(cityId).id;
+  return Object.entries(TELEPORT_LOCATIONS)
+    .filter(([key]) => (TELEPORT_CITY_MAP[key] || 'seoul') === id)
+    .map(([key, loc]) => ({ id: key, ...loc }));
+}
 
 const ISLAND_BOUNDS = (() => {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -683,8 +818,11 @@ function getBlockBounds(col, row) {
 /**
  * Exact street / avenue / landmark name at any world (x, z): the nearest roads of the real street centreline
  */
-function getLocationLabel(x, z) {
-  for (const lm of NYC_LANDMARKS) {
+function getLocationLabel(x, z, activeCity = null) {
+  const orderedLandmarks = activeCity
+    ? [...NYC_LANDMARKS].sort((a, b) => (a.city === activeCity ? -1 : 1) - (b.city === activeCity ? -1 : 1))
+    : NYC_LANDMARKS;
+  for (const lm of orderedLandmarks) {
     if (Math.hypot(x - lm.x, z - lm.z) < 80) {
       const near = nearestRoads(x, z, 120);
       const ave = near.find((r) => !r.horizontal);
@@ -692,20 +830,25 @@ function getLocationLabel(x, z) {
       return `${lm.name}${ave && st ? ` · ${st.road.name} & ${ave.road.name}` : ''}`;
     }
   }
+  const region = activeCity ? getCityRegion(activeCity) : null;
   const cp = CENTRAL_PARK_BOUNDS;
   if (x > cp.minX && x < cp.maxX && z > cp.minZ && z < cp.maxZ) {
-    return '선정릉 역사문화공원 (Seolleung Royal Park)';
+    return region ? region.parkLabel : '세종호수공원 & 국립세종도서관 (Sejong Lake Park)';
   }
   const shore = getIslandBoundsAtZ(z);
   const near = nearestRoads(x, z, 160);
   const ave = near.find((r) => !r.horizontal);
   const st = near.find((r) => r.horizontal);
   if (z > CUT_Z && (x < shore.westX + 30 || x > shore.eastX - 30)) {
-    return `${x < (shore.westX + shore.eastX) / 2 ? '한강 시민공원' : '탄천 수변공원'} 워터프론트${st ? ` · ${st.road.name}` : ''}`;
+    const isWest = x < (shore.westX + shore.eastX) / 2;
+    const wf = region
+      ? (isWest ? region.waterfrontWest : region.waterfrontEast)
+      : (isWest ? '금강 수변공원' : '한강 · 탄천 수변공원');
+    return `${wf} 워터프론트${st ? ` · ${st.road.name}` : ''}`;
   }
   if (ave && st) return `${st.road.name} & ${ave.road.name}`;
   if (near.length) return near[0].road.name;
-  return '서울 강남 테헤란로 (Seoul Teheran-ro)';
+  return region ? region.fallbackLabel : '세종특별자치시 & 서울 테헤란로 (Sejong · Seoul)';
 }
 
 /**
@@ -795,8 +938,11 @@ export {
   STREETS,
   ALL_STREETS,
   ROADS,
+  CITY_REGIONS,
+  TELEPORT_CITY_MAP,
   NYC_LANDMARKS,
   LANDMARK_SITES,
+  SEJONG_GOV_ROADS,
   TELEPORT_LOCATIONS,
   ISLAND_BOUNDS,
   BLOCKS,
@@ -808,6 +954,10 @@ export {
   blockAt,
   nearestRoads,
   getBlockBounds,
+  getCityRegion,
+  inferCityFromCoords,
+  getCityLandmarks,
+  getCityTeleports,
   getLocationLabel,
   fromOldFrame,
   isTypingInField,

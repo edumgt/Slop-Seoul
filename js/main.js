@@ -3,7 +3,16 @@ import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
-import { getLocationLabel, isTypingInField, ROADS, NYC_LANDMARKS, TELEPORT_LOCATIONS } from './city-config.js';
+import {
+  getLocationLabel,
+  isTypingInField,
+  ROADS,
+  NYC_LANDMARKS,
+  TELEPORT_LOCATIONS,
+  TELEPORT_CITY_MAP,
+  getCityRegion,
+  inferCityFromCoords
+} from './city-config.js';
 import { buildCityGrid } from './city-grid.js';
 import { buildBoroughs } from './boroughs.js';
 import { buildLandmarks } from './landmarks.js';
@@ -149,9 +158,11 @@ async function initApp() {
   await showLoadingStage('Preparing player, vehicles and controls...', 'controllers');
   const controllerManager = new ThirdPersonControllerManager(scene, allColliders);
   // Reuse teleport placement so saved players return at rest, close to their last positions.
+  let savedPlayerState = null;
   try {
     const saved = JSON.parse(localStorage.getItem('nyc-player-state'));
     if (saved?.version === 1) {
+      savedPlayerState = saved;
       for (const mode of Object.keys(controllerManager.entities)) {
         const p = saved.entities?.[mode];
         if (!p || ![p.x, p.y, p.z, p.heading].every(Number.isFinite)) continue;
@@ -162,12 +173,27 @@ async function initApp() {
     }
   } catch { /* Missing or unavailable storage does not prevent playing. */ }
 
+  let activeCity = 'sejong';
+  if (savedPlayerState) {
+    if (savedPlayerState.activeCity === 'sejong' || savedPlayerState.activeCity === 'seoul') {
+      activeCity = savedPlayerState.activeCity;
+    } else {
+      const ent = controllerManager.getActiveEntity();
+      activeCity = inferCityFromCoords(ent.position.x, ent.position.z);
+    }
+  }
+
   function savePlayerState() {
     try {
       const entities = Object.fromEntries(Object.entries(controllerManager.entities).map(([mode, entity]) => [mode, {
         x: entity.position.x, y: entity.position.y, z: entity.position.z, heading: entity.heading
       }]));
-      localStorage.setItem('nyc-player-state', JSON.stringify({ version: 1, activeMode: controllerManager.activeMode, entities }));
+      localStorage.setItem('nyc-player-state', JSON.stringify({
+        version: 1,
+        activeCity,
+        activeMode: controllerManager.activeMode,
+        entities
+      }));
     } catch { /* Storage may be disabled or full. */ }
   }
 
@@ -280,6 +306,7 @@ async function initApp() {
   const renderPipeline = new THREE.RenderPipeline(renderer, colorGrade.outputNode);
 
   // 6. Wire UI Controls (Strictly using safe DOM APIs: textContent, classList, addEventListener)
+  const cityButtons = document.querySelectorAll('.city-btn[data-city]');
   const modeButtons = document.querySelectorAll('[data-mode]');
   const cameraButtons = document.querySelectorAll('[data-camera]');
   const timeButtons = document.querySelectorAll('[data-time]');
@@ -289,6 +316,12 @@ async function initApp() {
   const modeSwitch = document.getElementById('mode-switch');
   touchControls.onAvailabilityChange = placeModeIndicator;
 
+  const elBrandBadge = document.getElementById('brand-badge');
+  const elBrandTitle = document.getElementById('brand-title');
+  const elBrandSubtitleCity = document.getElementById('brand-subtitle-city');
+  const elMinimapCard = document.getElementById('minimap-card');
+  const elTrafficInfo = document.getElementById('hud-traffic-info');
+  const tpSwitchCityBtn = document.getElementById('tp-switch-city');
   const elFps = document.getElementById('hud-fps');
   const elMode = document.getElementById('hud-active-mode');
   const elCamera = document.getElementById('hud-active-camera');
@@ -375,11 +408,78 @@ async function initApp() {
     if (elCamera) elCamera.textContent = preset.name;
   }
 
-  // Steps through CAMERA_PRESETS (V / Shift+V, and the arrows either side of the camera name)
+  // Steps through follow cameras + scenic cameras of the active city
   function cycleCamera(step) {
-    const n = CAMERA_PRESETS.length;
-    const idx = CAMERA_PRESETS.findIndex((p) => p.id === cameraSystem.activePresetId);
-    selectCamera(CAMERA_PRESETS[(idx + step + n) % n].id, true);
+    const allowed = CAMERA_PRESETS.filter((p) => p.city === 'all' || p.city === activeCity);
+    const n = allowed.length || CAMERA_PRESETS.length;
+    const pool = allowed.length ? allowed : CAMERA_PRESETS;
+    const idx = pool.findIndex((p) => p.id === cameraSystem.activePresetId);
+    const nextIdx = idx < 0 ? 0 : (idx + step + n) % n;
+    selectCamera(pool[nextIdx].id, true);
+  }
+
+  function updateTrafficHud() {
+    if (!elTrafficLabel || !trafficSystem?.getCongestionStats) return;
+    const stats = trafficSystem.getCongestionStats();
+    const region = getCityRegion(activeCity);
+    const speedKmh = activeCity === 'sejong' ? stats.sejongSpeedKmh : stats.teheranSpeedKmh;
+    elTrafficLabel.textContent = `${region.shortName} ${stats.statusKo} · ${stats.activeVehicles}대 (평균 ${speedKmh}km/h)`;
+    if (elTrafficDot) {
+      elTrafficDot.className = `traffic-dot ${stats.congestionLevel}`;
+    }
+  }
+
+  function selectCity(cityId, { teleport = true, syncMap = true } = {}) {
+    const region = getCityRegion(cityId);
+    activeCity = region.id;
+    document.body.dataset.city = activeCity;
+
+    cityButtons.forEach((btn) => {
+      const isActive = btn.getAttribute('data-city') === activeCity;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', String(isActive));
+    });
+    if (elBrandBadge) elBrandBadge.textContent = region.badge;
+    if (elBrandTitle) elBrandTitle.textContent = region.brandTitle;
+    if (elBrandSubtitleCity) elBrandSubtitleCity.textContent = region.subtitle;
+    if (elMinimapCard) {
+      elMinimapCard.setAttribute('aria-label', `${region.name} 실시간 레이더 미니맵`);
+      elMinimapCard.title = `${region.name} 전체 지도 열기 [M]`;
+    }
+    if (elTrafficInfo) {
+      elTrafficInfo.title = `${region.trafficCorridor} 실시간 교통 밀도 및 정체 수준`;
+    }
+    if (tpSwitchCityBtn) {
+      const nextRegion = getCityRegion(activeCity === 'sejong' ? 'seoul' : 'sejong');
+      const nameEl = tpSwitchCityBtn.querySelector('.pop-name');
+      const subEl = tpSwitchCityBtn.querySelector('.pop-sub');
+      if (nameEl) nameEl.textContent = `${nextRegion.shortName} 랜드마크로 전환 →`;
+      if (subEl) subEl.textContent = nextRegion.trafficCorridor;
+    }
+
+    const activePreset = cameraSystem.getActivePreset();
+    if (activePreset && activePreset.city && activePreset.city !== 'all' && activePreset.city !== activeCity) {
+      selectCamera('chase', true);
+    }
+
+    if (syncMap) {
+      mapSystem.setActiveCity(activeCity, teleport);
+    }
+
+    if (teleport) {
+      const loc = TELEPORT_LOCATIONS[region.defaultTeleport];
+      if (loc) {
+        teleportTo(loc.x, loc.z, loc.heading);
+      }
+    }
+
+    updateTrafficHud();
+    locationText = '';
+    const where = cameraSystem.getActivePreset().category === 'follow'
+      ? controllerManager.getActiveEntity().position
+      : cameraSystem.currentPos;
+    renderLocation(getLocationLabel(where.x, where.z, activeCity));
+    savePlayerState();
   }
 
   function selectWeather(weatherId) {
@@ -423,12 +523,24 @@ async function initApp() {
       const align = document.getElementById(pop.dataset.align) || invoker;
       if (!anchor || !align) return;
       const r = anchor.getBoundingClientRect();
+      const ar = align.getBoundingClientRect();
+      if (pop.dataset.side === 'right') {
+        const left = Math.min(window.innerWidth - 292, ar.right + 10);
+        const top = Math.max(12, Math.min(window.innerHeight - 240, r.top));
+        pop.style.right = 'auto';
+        pop.style.bottom = 'auto';
+        pop.style.left = `${Math.max(8, left)}px`;
+        pop.style.top = `${top}px`;
+        pop.style.maxHeight = `${Math.max(160, window.innerHeight - top - 16)}px`;
+        return;
+      }
       const spaceAbove = Math.max(0, r.top - 20);
       const spaceBelow = Math.max(0, window.innerHeight - r.bottom - 20);
       let above = pop.dataset.side === 'above';
       // The camera control moves to the top on touch screens; open toward the available space.
       if ((above ? spaceAbove : spaceBelow) < 160) above = spaceAbove > spaceBelow;
-      pop.style.right = `${Math.max(8, window.innerWidth - align.getBoundingClientRect().right)}px`;
+      pop.style.left = 'auto';
+      pop.style.right = `${Math.max(8, window.innerWidth - ar.right)}px`;
       if (above) {
         pop.style.top = 'auto';
         pop.style.bottom = `${window.innerHeight - r.top + 8}px`;
@@ -486,7 +598,16 @@ async function initApp() {
     locationText = label;
     let place = '';
     let streets = label;
-    const split = label.indexOf(' · ');
+    let split = -1;
+    for (let i = 0, depth = 0; i < label.length; i++) {
+      const ch = label[i];
+      if (ch === '(') depth++;
+      else if (ch === ')') depth = Math.max(0, depth - 1);
+      else if (depth === 0 && label.startsWith(' · ', i)) {
+        split = i;
+        break;
+      }
+    }
     if (split >= 0) {
       place = label.slice(0, split);
       streets = label.slice(split + 3);
@@ -566,13 +687,42 @@ async function initApp() {
   const openMapBtn = document.getElementById('btn-open-map');
   if (openMapBtn) openMapBtn.addEventListener('click', () => mapSystem.toggleFullMap(true));
 
+  mapSystem.onCityChange = (cityId) => {
+    selectCity(cityId, { teleport: true, syncMap: false });
+  };
+
+  cityButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      selectCity(btn.getAttribute('data-city'), { teleport: true, syncMap: true });
+      closePopovers();
+    });
+  });
+
+  if (tpSwitchCityBtn) {
+    tpSwitchCityBtn.addEventListener('click', () => {
+      const nextCity = activeCity === 'sejong' ? 'seoul' : 'sejong';
+      selectCity(nextCity, { teleport: true, syncMap: true });
+      closePopovers();
+    });
+  }
+
+  teleportButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.getAttribute('data-teleport');
+      const targetCity = TELEPORT_CITY_MAP[key] || 'seoul';
+      if (targetCity !== activeCity) {
+        selectCity(targetCity, { teleport: false, syncMap: true });
+      }
+    });
+  });
+
   if (hudToggleBtn) {
     hudToggleBtn.addEventListener('click', () => {
       document.body.classList.toggle('hud-minimized');
       const isMin = document.body.classList.contains('hud-minimized');
       hudToggleBtn.setAttribute('aria-pressed', String(isMin));
-      hudToggleBtn.setAttribute('aria-label', isMin ? 'Show HUD' : 'Hide HUD');
-      hudToggleBtn.title = isMin ? 'Show the HUD [H]' : 'Clean view: hide the HUD [H]';
+      hudToggleBtn.setAttribute('aria-label', isMin ? 'HUD 표시' : 'HUD 숨기기');
+      hudToggleBtn.title = isMin ? 'HUD 표시 [H]' : '클린 뷰: HUD 숨기기 [H]';
       if (isMin) closePopovers();
     });
   }
@@ -603,13 +753,13 @@ async function initApp() {
         selectCamera('pov', true);
         break;
       case 'Digit8':
-        selectCamera('fifthAve', true);
+        selectCamera(activeCity === 'sejong' ? 'sejongComplex' : 'fifthAve', true);
         break;
       case 'Digit9':
-        selectCamera('timesSquare', true);
+        selectCamera(activeCity === 'sejong' ? 'centralPark' : 'timesSquare', true);
         break;
       case 'Digit0':
-        selectCamera('chryslerGCT', true);
+        selectCamera(activeCity === 'sejong' ? 'sejongGovTower' : 'chryslerGCT', true);
         break;
       case 'KeyV':
         cycleCamera(e.shiftKey ? -1 : 1);
@@ -636,9 +786,10 @@ async function initApp() {
     }
   });
 
-  // Initialize the UI and chase camera around the restored player, or the default taxi on a first visit.
+  // Initialize the UI, selected city region (Sejong by default on fresh visit), and chase camera.
   selectMode(controllerManager.activeMode);
   selectCamera('chase', true);
+  selectCity(activeCity, { teleport: !savedPlayerState, syncMap: true });
   selectTime('golden');
   // the web fonts change the buttons' widths once they arrive
   if (document.fonts) document.fonts.ready.then(placeModeIndicator);
@@ -832,16 +983,10 @@ async function initApp() {
       if (elSpeed) elSpeed.textContent = String(kmh);
       if (elSpeedMeter) elSpeedMeter.style.transform = `scaleX(${Math.min(1, kmh / (topSpeedKmh[mode] || 130))})`;
       if (elAltitude) elAltitude.textContent = altM.toLocaleString('ko-KR');
-      if (elTrafficLabel && trafficSystem?.getCongestionStats) {
-        const stats = trafficSystem.getCongestionStats();
-        elTrafficLabel.textContent = `${stats.statusKo} · ${stats.activeVehicles}대 (평균 ${stats.teheranSpeedKmh}km/h)`;
-        if (elTrafficDot) {
-          elTrafficDot.className = `traffic-dot ${stats.congestionLevel}`;
-        }
-      }
+      updateTrafficHud();
       // The street corner of the player on the follow cameras, of the camera itself on the scenic ones
       const where = cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos;
-      renderLocation(getLocationLabel(where.x, where.z));
+      renderLocation(getLocationLabel(where.x, where.z, activeCity));
     }
   });
 }

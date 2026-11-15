@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Slop Seoul · 테헤란로 (Teheran-ro)</title>
+  <title>Slop Korea · 세종특별자치시 &amp; 테헤란로 (Sejong · Teheran-ro)</title>
   <link rel="icon" href="data:," />
-  <meta name="description" content="Three.js WebGPU 및 TSL 셰이더로 구현된 서울 강남 테헤란로 3D 시뮬레이션. 강남역부터 역삼, 선릉, 삼성역 코엑스까지 테헤란로 빌딩 숲을 도보, 서울 택시, 따릉이, 헬리콥터로 탐험하세요." />
-  <meta property="og:title" content="Slop Seoul · 테헤란로 (Teheran-ro)" />
-  <meta property="og:description" content="Three.js WebGPU 및 TSL 셰이더로 구현된 서울 강남 테헤란로 3D 시뮬레이션. 강남역부터 역삼, 선릉, 삼성역 코엑스까지 테헤란로 빌딩 숲을 도보, 서울 택시, 따릉이, 헬리콥터로 탐험하세요." />
+  <meta name="description" content="Three.js WebGPU 및 TSL 셰이더로 구현된 한국 세종특별자치시(정부세종청사·국립세종도서관·한누리대로·절재로 관공서 중심 도로)와 서울 테헤란로 3D 도시 시뮬레이션." />
+  <meta property="og:title" content="Slop Korea · 세종특별자치시 &amp; 테헤란로 (Sejong · Teheran-ro)" />
+  <meta property="og:description" content="Three.js WebGPU 및 TSL 셰이더로 구현된 한국 세종특별자치시(정부세종청사·한누리대로·절재로 관공서 중심 도로)와 서울 테헤란로 3D 도시 시뮬레이션." />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
@@ -81,7 +81,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <link rel="stylesheet" href="./css/style.css?v=20261022-repo-link" />
 </head>
-<body>
+<body data-city="sejong">
   <!-- Icon sprite (24 × 24 stroke icons, drawn in currentColor) -->
   <svg class="icon-sprite" width="0" height="0" aria-hidden="true" focusable="false">
     <defs>
@@ -112,95 +112,132 @@
       <symbol id="i-cloud-fog" viewBox="0 0 24 24"><path d="M4 14.8A4.2 4.2 0 0 1 7.8 10a5.5 5.5 0 0 1 10.4 1.5 3.8 3.8 0 0 1 1.8 7.3H4.5"/><path d="M3 18.5h18M6 21.5h12"/></symbol>
       <symbol id="i-cloud-rain" viewBox="0 0 24 24"><path d="M4 14.8A4.2 4.2 0 0 1 7.8 10a5.5 5.5 0 0 1 10.4 1.5 3.8 3.8 0 0 1 1.8 7.3H4.5"/><path d="m8 18-1.5 3.5M12 18l-1.5 3.5M16 18l-1.5 3.5"/></symbol>
       <symbol id="i-cloud-downpour" viewBox="0 0 24 24"><path d="M4 13.8A4.2 4.2 0 0 1 7.8 9a5.5 5.5 0 0 1 10.4 1.5 3.8 3.8 0 0 1 1.8 7.3H4.5"/><path d="m7 16.5-2 5M11 16.5-2 5M15 16.5-2 5M19 16.5-2 5"/></symbol>
+      <symbol id="i-city-sejong" viewBox="0 0 24 24"><path d="M3 20.5h18M4.5 20.5V10.5l7.5-4.8 7.5 4.8v10M8.5 20.5v-5.5h7v5.5M9 11.5h1.5M13.5 11.5H15"/></symbol>
+      <symbol id="i-city-seoul" viewBox="0 0 24 24"><path d="M3 20.5h18M5.5 20.5V9.5h4.5v11M10 20.5V4.5l4-1.5v17.5M14 20.5v-8h4.5v8M12 6.5v1.5M12 10.5v1.5"/></symbol>
     </defs>
   </svg>
 
   <!-- Loading Screen -->
   <div id="loading-overlay" role="status" aria-live="polite">
     <div class="loader">
-      <span class="mta-bullet loader-bullet" aria-hidden="true" title="서울 지하철 2호선">2</span>
-      <div class="loader-title">서울 테헤란로 (Teheran-ro)</div>
+      <span class="mta-bullet loader-bullet" aria-hidden="true" title="세종 · 서울 메트로">S</span>
+      <div class="loader-title">세종특별자치시 &amp; 서울 테헤란로</div>
       <div class="loader-track" aria-hidden="true"><span id="loading-progress" class="loader-fill"></span></div>
-      <div id="loading-status">서울 테헤란로 3D 시뮬레이션 로딩 중...</div>
+      <div id="loading-status">세종 관공서 중심 도로 · 테헤란로 3D 시뮬레이션 로딩 중...</div>
     </div>
   </div>
 
   <!-- 3D WebGPU Viewport Container -->
-  <main id="canvas-container" aria-label="3D Interactive Seoul Teheran-ro Viewport"></main>
+  <main id="canvas-container" aria-label="3D Interactive Sejong City and Seoul Teheran-ro Viewport"></main>
 
   <!-- Top-Left: Brand & Renderer Telemetry -->
   <header class="hud hud-top-left">
     <div class="panel brand">
-      <span class="mta-bullet" aria-hidden="true" title="서울 지하철 2호선">2</span>
+      <span id="brand-badge" class="mta-bullet" aria-hidden="true" title="세종 · 서울 행정·비즈니스 중심">세</span>
       <div class="brand-titles">
         <div class="brand-heading">
-          <h1>Slop Seoul · 테헤란로</h1>
+          <h1 id="brand-title">Slop Korea · 세종특별자치시</h1>
           <a class="repo-link" href="https://github.com/mrdoob/slop-newyork/" target="_blank" rel="noopener noreferrer" aria-label="Slop New York on GitHub (opens in a new tab)">GitHub <span aria-hidden="true">↗</span></a>
         </div>
-        <div class="brand-subtitle">three.js · WebGPU · TSL · 강남 테크밸리 · <span id="hud-fps" class="fps-ok">60</span> fps</div>
+        <div class="brand-subtitle"><span id="brand-subtitle-city">정부세종청사 · 한누리대로</span> · <span id="hud-fps" class="fps-ok">60</span> fps</div>
       </div>
     </div>
   </header>
-  <!-- Top-Right Toolbar: Time of Day, Teleport, Map & Clean View -->
-  <div class="hud hud-top-right">
-    <div id="hud-toolbar" class="panel toolbar">
-      <div class="time-switch" role="group" aria-label="시간대 및 대기 분위기">
-        <button id="time-golden" class="time-btn active" data-time="golden" type="button" title="노을 (Golden Hour)">
-          <svg class="icon" aria-hidden="true"><use href="#i-golden"/></svg><span class="seg-label">노을</span>
-        </button>
-        <button id="time-midday" class="time-btn" data-time="midday" type="button" title="화창한 한낮 (Midday)">
-          <svg class="icon" aria-hidden="true"><use href="#i-sun"/></svg><span class="seg-label">한낮</span>
-        </button>
-        <button id="time-twilight" class="time-btn" data-time="twilight" type="button" title="매직아워 (Blue Hour)">
-          <svg class="icon" aria-hidden="true"><use href="#i-twilight"/></svg><span class="seg-label">매직아워</span>
-        </button>
-        <button id="time-midnight" class="time-btn" data-time="midnight" type="button" title="강남 야경 (Night 23:00)">
-          <svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg><span class="seg-label">야경</span>
-        </button>
-      </div>
-      <span class="toolbar-divider" aria-hidden="true"></span>
-      <div class="weather-switch" role="group" aria-label="실시간 날씨 선택">
-        <button id="weather-clear" class="weather-btn active" data-weather="clear" type="button" title="맑음 (Clear Sky)">
-          <svg class="icon" aria-hidden="true"><use href="#i-sun"/></svg><span class="seg-label">맑음</span>
-        </button>
-        <button id="weather-fog" class="weather-btn" data-weather="fog" type="button" title="안개 (City Fog / Mist)">
-          <svg class="icon" aria-hidden="true"><use href="#i-cloud-fog"/></svg><span class="seg-label">안개</span>
-        </button>
-        <button id="weather-rain" class="weather-btn" data-weather="rain" type="button" title="비 (Light Rain)">
-          <svg class="icon" aria-hidden="true"><use href="#i-cloud-rain"/></svg><span class="seg-label">비</span>
-        </button>
-        <button id="weather-downpour" class="weather-btn" data-weather="downpour" type="button" title="폭우 (Heavy Downpour)">
-          <svg class="icon" aria-hidden="true"><use href="#i-cloud-downpour"/></svg><span class="seg-label">폭우</span>
-        </button>
-      </div>
-      <span class="toolbar-divider" aria-hidden="true"></span>
-      <button id="btn-teleport" class="tool-btn" type="button" popovertarget="teleport-popover" title="테헤란로 랜드마크로 순간이동">
-        <svg class="icon" aria-hidden="true"><use href="#i-pin"/></svg><span class="tool-label">순간이동</span><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chevron-down"/></svg>
-      </button>
-      <button id="btn-open-map" class="tool-btn" type="button" title="서울 테헤란로 스트리트 맵 [M]">
-        <svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span class="tool-label">지도</span><kbd>M</kbd>
-      </button>
-      <span class="toolbar-divider" aria-hidden="true"></span>
-      <button id="btn-sound" class="tool-btn icon-only" type="button" title="음소거 [N]" aria-label="음향 켜기/끄기" aria-pressed="true">
-        <svg class="icon" aria-hidden="true"><use href="#i-sound"/></svg>
-      </button>
-      <button id="btn-toggle-hud" class="tool-btn icon-only" type="button" title="클린 뷰: HUD 숨기기 [H]" aria-label="HUD 숨기기" aria-pressed="false">
-        <svg class="icon icon-hide" aria-hidden="true"><use href="#i-eye"/></svg><svg class="icon icon-show" aria-hidden="true"><use href="#i-eye-off"/></svg>
-      </button>
-    </div>
-  </div>
 
-  <!-- Teleport Destinations (native popover: light-dismiss & Esc) -->
-  <div id="teleport-popover" class="popover" popover data-side="below" data-anchor="hud-toolbar" aria-label="테헤란로 랜드마크 순간이동">
-    <div class="pop-title">순간이동 위치</div>
-    <button id="tp-empire" class="pop-item tp-btn" data-teleport="empire" type="button"><span class="pop-name">강남파이낸스센터 (GFC)</span><span class="pop-sub">역삼역 · 테헤란로 중심</span></button>
-    <button id="tp-timessq" class="pop-item tp-btn" data-teleport="timessq" type="button"><span class="pop-name">코엑스 K-POP 스퀘어</span><span class="pop-sub">삼성역 · 영동대로 미디어</span></button>
-    <button id="tp-chrysler" class="pop-item tp-btn" data-teleport="chrysler" type="button"><span class="pop-name">한국종합무역센터 (Trade Tower)</span><span class="pop-sub">삼성역 · 테헤란로 동단</span></button>
-    <button id="tp-grandcentral" class="pop-item tp-btn" data-teleport="grandcentral" type="button"><span class="pop-name">포스코센터 (Posco Center)</span><span class="pop-sub">포스코사거리 · 테헤란로</span></button>
-    <button id="tp-bryant" class="pop-item tp-btn" data-teleport="bryant" type="button"><span class="pop-name">선릉역 벤처밸리</span><span class="pop-sub">선릉역 · 테헤란 IT타운</span></button>
-    <button id="tp-flatiron" class="pop-item tp-btn" data-teleport="flatiron" type="button"><span class="pop-name">강남역 사거리</span><span class="pop-sub">강남대로 &amp; 테헤란로 교차로</span></button>
-    <button id="tp-centralpark" class="pop-item tp-btn" data-teleport="centralpark" type="button"><span class="pop-name">선정릉 도심 숲 공원</span><span class="pop-sub">선릉로 · 유네스코 왕릉 숲</span></button>
-    <button id="tp-owtc" class="pop-item tp-btn" data-teleport="owtc" type="button"><span class="pop-name">한강 탄천 워터프론트</span><span class="pop-sub">한강 시민공원 &amp; 탄천 합수부</span></button>
+  <!-- Left Navigation Bar (LNB): City Region Switch, Time of Day, Weather, Teleport, Map & Clean View -->
+  <aside class="hud hud-left" aria-label="주 내비게이션 (LNB)">
+    <nav id="hud-toolbar" class="panel toolbar toolbar-lnb" aria-label="도시 환경 및 이동 메뉴">
+      <div class="lnb-section lnb-city-section">
+        <span class="lnb-heading">도시 선택</span>
+        <div class="city-switch" role="group" aria-label="도시 선택 (세종시 · 서울시)">
+          <button id="city-sejong" class="city-btn active" data-city="sejong" type="button" title="세종특별자치시 보기 (정부세종청사 · 한누리대로)">
+            <svg class="icon" aria-hidden="true"><use href="#i-city-sejong"/></svg><span class="seg-label">세종시</span>
+          </button>
+          <button id="city-seoul" class="city-btn" data-city="seoul" type="button" title="서울특별시 보기 (강남 테헤란로 · 코엑스)">
+            <svg class="icon" aria-hidden="true"><use href="#i-city-seoul"/></svg><span class="seg-label">서울시</span>
+          </button>
+        </div>
+      </div>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <div class="lnb-section">
+        <span class="lnb-heading">시간대</span>
+        <div class="time-switch" role="group" aria-label="시간대 및 대기 분위기">
+          <button id="time-golden" class="time-btn active" data-time="golden" type="button" title="노을 (Golden Hour)">
+            <svg class="icon" aria-hidden="true"><use href="#i-golden"/></svg><span class="seg-label">노을</span>
+          </button>
+          <button id="time-midday" class="time-btn" data-time="midday" type="button" title="화창한 한낮 (Midday)">
+            <svg class="icon" aria-hidden="true"><use href="#i-sun"/></svg><span class="seg-label">한낮</span>
+          </button>
+          <button id="time-twilight" class="time-btn" data-time="twilight" type="button" title="매직아워 (Blue Hour)">
+            <svg class="icon" aria-hidden="true"><use href="#i-twilight"/></svg><span class="seg-label">매직</span>
+          </button>
+          <button id="time-midnight" class="time-btn" data-time="midnight" type="button" title="도심 야경 (Night 23:00)">
+            <svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg><span class="seg-label">야경</span>
+          </button>
+        </div>
+      </div>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <div class="lnb-section">
+        <span class="lnb-heading">날씨</span>
+        <div class="weather-switch" role="group" aria-label="실시간 날씨 선택">
+          <button id="weather-clear" class="weather-btn active" data-weather="clear" type="button" title="맑음 (Clear Sky)">
+            <svg class="icon" aria-hidden="true"><use href="#i-sun"/></svg><span class="seg-label">맑음</span>
+          </button>
+          <button id="weather-fog" class="weather-btn" data-weather="fog" type="button" title="안개 (City Fog / Mist)">
+            <svg class="icon" aria-hidden="true"><use href="#i-cloud-fog"/></svg><span class="seg-label">안개</span>
+          </button>
+          <button id="weather-rain" class="weather-btn" data-weather="rain" type="button" title="비 (Light Rain)">
+            <svg class="icon" aria-hidden="true"><use href="#i-cloud-rain"/></svg><span class="seg-label">비</span>
+          </button>
+          <button id="weather-downpour" class="weather-btn" data-weather="downpour" type="button" title="폭우 (Heavy Downpour)">
+            <svg class="icon" aria-hidden="true"><use href="#i-cloud-downpour"/></svg><span class="seg-label">폭우</span>
+          </button>
+        </div>
+      </div>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <div class="lnb-nav">
+        <button id="btn-teleport" class="tool-btn lnb-item" type="button" popovertarget="teleport-popover" title="세종 관공서 · 테헤란로 랜드마크 순간이동">
+          <svg class="icon" aria-hidden="true"><use href="#i-pin"/></svg><span class="tool-label">순간이동</span><svg class="icon icon-sm lnb-chevron" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+        </button>
+        <button id="btn-open-map" class="tool-btn lnb-item" type="button" title="세종시 · 테헤란로 스트리트 맵 [M]">
+          <svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span class="tool-label">지도</span><kbd>M</kbd>
+        </button>
+      </div>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <div class="lnb-utility">
+        <button id="btn-sound" class="tool-btn icon-only" type="button" title="음소거 [N]" aria-label="음향 켜기/끄기" aria-pressed="true">
+          <svg class="icon" aria-hidden="true"><use href="#i-sound"/></svg>
+        </button>
+        <button id="btn-toggle-hud" class="tool-btn icon-only" type="button" title="클린 뷰: HUD 숨기기 [H]" aria-label="HUD 숨기기" aria-pressed="false">
+          <svg class="icon icon-hide" aria-hidden="true"><use href="#i-eye"/></svg><svg class="icon icon-show" aria-hidden="true"><use href="#i-eye-off"/></svg>
+        </button>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- Teleport Destinations (native popover: opens to right of LNB, scoped by active city) -->
+  <div id="teleport-popover" class="popover" popover data-side="right" data-anchor="btn-teleport" data-align="hud-toolbar" aria-label="도시별 랜드마크 순간이동">
+    <div class="pop-group" data-city-group="sejong">
+      <div class="pop-title">세종시 관공서 중심 도로</div>
+      <button id="tp-sejong-complex" class="pop-item tp-btn" data-teleport="sejong_complex" type="button"><span class="pop-name">정부세종청사 (Gov. Complex)</span><span class="pop-sub">다솜로 · 행정타운 중심</span></button>
+      <button id="tp-sejong-library" class="pop-item tp-btn" data-teleport="sejong_library" type="button"><span class="pop-name">국립세종도서관 &amp; 대통령기록관</span><span class="pop-sub">세종호수공원 · 국립도서관길</span></button>
+      <button id="tp-sejong-brt" class="pop-item tp-btn" data-teleport="sejong_brt" type="button"><span class="pop-name">한누리대로 세종 BRT 중심축</span><span class="pop-sub">어진동 · 정부청사 순환대로</span></button>
+      <button id="tp-sejong-pmo" class="pop-item tp-btn" data-teleport="sejong_pmo" type="button"><span class="pop-name">국무총리실 &amp; 행정안전부</span><span class="pop-sub">절재로 · 한누리대로 교차로</span></button>
+      <button id="tp-sejong-cityhall" class="pop-item tp-btn" data-teleport="sejong_cityhall" type="button"><span class="pop-name">세종특별자치시청 &amp; 시의회</span><span class="pop-sub">도움6로 · 시청대로 보람동</span></button>
+      <button id="tp-centralpark" class="pop-item tp-btn" data-teleport="centralpark" type="button"><span class="pop-name">세종호수공원 남단</span><span class="pop-sub">절재로 · 호수공원 진입로</span></button>
+    </div>
+    <div class="pop-group" data-city-group="seoul">
+      <div class="pop-title">서울 강남 테헤란로</div>
+      <button id="tp-empire" class="pop-item tp-btn" data-teleport="empire" type="button"><span class="pop-name">강남파이낸스센터 (GFC)</span><span class="pop-sub">역삼역 · 테헤란로 중심</span></button>
+      <button id="tp-timessq" class="pop-item tp-btn" data-teleport="timessq" type="button"><span class="pop-name">코엑스 K-POP 스퀘어</span><span class="pop-sub">삼성역 · 영동대로 미디어</span></button>
+      <button id="tp-chrysler" class="pop-item tp-btn" data-teleport="chrysler" type="button"><span class="pop-name">한국종합무역센터 (Trade Tower)</span><span class="pop-sub">삼성역 · 테헤란로 동단</span></button>
+      <button id="tp-grandcentral" class="pop-item tp-btn" data-teleport="grandcentral" type="button"><span class="pop-name">포스코센터 (Posco Center)</span><span class="pop-sub">포스코사거리 · 테헤란로</span></button>
+      <button id="tp-bryant" class="pop-item tp-btn" data-teleport="bryant" type="button"><span class="pop-name">선릉역 벤처밸리</span><span class="pop-sub">선릉역 · 테헤란 IT타운</span></button>
+      <button id="tp-flatiron" class="pop-item tp-btn" data-teleport="flatiron" type="button"><span class="pop-name">강남역 사거리</span><span class="pop-sub">강남대로 &amp; 테헤란로 교차로</span></button>
+      <button id="tp-owtc" class="pop-item tp-btn" data-teleport="owtc" type="button"><span class="pop-name">한강 · 탄천 워터프론트</span><span class="pop-sub">수변공원 &amp; 전망 타워</span></button>
+    </div>
+    <div class="pop-divider" aria-hidden="true"></div>
+    <button id="tp-switch-city" class="pop-item pop-switch-city" type="button"><span class="pop-name">서울시 랜드마크로 전환 →</span><span class="pop-sub">강남 테헤란로 · 코엑스</span></button>
   </div>
 
   <!-- Bottom-Left: Street-Name Signs & Live GPS Radar Minimap -->
@@ -282,40 +319,52 @@
     </div>
   </section>
 
-  <!-- All Cameras: 3 Follow Cameras + 7 Iconic Seoul Vantage Cameras + Auto-Director Drone -->
+  <!-- All Cameras: 3 Follow Cameras + City-Scoped Scenic Cameras -->
   <div id="camera-popover" class="popover" popover data-side="above" data-anchor="hud-cluster" data-align="hud-cluster" aria-label="다양한 카메라 시점">
     <div class="pop-title">추적 시점</div>
     <button id="cam-chase" class="pop-item cam-btn active" data-camera="chase" type="button"><span class="pop-name">3인칭 추적 (Chase)</span><kbd>5</kbd></button>
     <button id="cam-action" class="pop-item cam-btn" data-camera="action" type="button"><span class="pop-name">로우앵글 액션 (Action)</span><kbd>6</kbd></button>
     <button id="cam-pov" class="pop-item cam-btn" data-camera="pov" type="button"><span class="pop-name">1인칭 운전석 (Cockpit)</span><kbd>7</kbd></button>
-    <div class="pop-title">테헤란로 스카이라인</div>
-    <button id="cam-centralPark" class="pop-item cam-btn" data-camera="centralPark" type="button"><span class="pop-name">선정릉 도심 숲 (Seolleung)</span></button>
-    <button id="cam-fifthAve" class="pop-item cam-btn" data-camera="fifthAve" type="button"><span class="pop-name">강남역 사거리 (Gangnam Stn)</span><kbd>8</kbd></button>
-    <button id="cam-timesSquare" class="pop-item cam-btn" data-camera="timesSquare" type="button"><span class="pop-name">코엑스 K-POP 스퀘어</span><kbd>9</kbd></button>
-    <button id="cam-chryslerGCT" class="pop-item cam-btn" data-camera="chryslerGCT" type="button"><span class="pop-name">한국무역센터 &amp; 코엑스</span><kbd>0</kbd></button>
-    <button id="cam-observatory" class="pop-item cam-btn" data-camera="observatory" type="button"><span class="pop-name">GFC 타워 전망대</span></button>
-    <button id="cam-bryantPark" class="pop-item cam-btn" data-camera="bryantPark" type="button"><span class="pop-name">포스코센터 아트리움</span></button>
-    <button id="cam-waterfront" class="pop-item cam-btn" data-camera="waterfront" type="button"><span class="pop-name">한강 탄천 워터프론트</span></button>
-    <button id="cam-drone" class="pop-item cam-btn" data-camera="drone" type="button"><span class="pop-name">테헤란로 항공 드론 뷰</span></button>
+    <div class="pop-group" data-city-group="sejong">
+      <div class="pop-title">세종시 행정타운 시점</div>
+      <button id="cam-centralPark" class="pop-item cam-btn" data-camera="centralPark" type="button"><span class="pop-name">세종호수공원 &amp; 국립도서관</span></button>
+      <button id="cam-sejongComplex" class="pop-item cam-btn" data-camera="sejongComplex" type="button"><span class="pop-name">정부세종청사 · 다솜로</span></button>
+      <button id="cam-sejongGovTower" class="pop-item cam-btn" data-camera="sejongGovTower" type="button"><span class="pop-name">국무총리실 &amp; 시청대로</span></button>
+      <button id="cam-sejongDrone" class="pop-item cam-btn" data-camera="sejongDrone" type="button"><span class="pop-name">세종시 행정타운 드론 뷰</span></button>
+    </div>
+    <div class="pop-group" data-city-group="seoul">
+      <div class="pop-title">서울 테헤란로 스카이라인</div>
+      <button id="cam-fifthAve" class="pop-item cam-btn" data-camera="fifthAve" type="button"><span class="pop-name">강남역 &amp; 테헤란로 중심</span><kbd>8</kbd></button>
+      <button id="cam-timesSquare" class="pop-item cam-btn" data-camera="timesSquare" type="button"><span class="pop-name">코엑스 K-POP 스퀘어</span><kbd>9</kbd></button>
+      <button id="cam-chryslerGCT" class="pop-item cam-btn" data-camera="chryslerGCT" type="button"><span class="pop-name">한국무역센터 &amp; 영동대로</span><kbd>0</kbd></button>
+      <button id="cam-observatory" class="pop-item cam-btn" data-camera="observatory" type="button"><span class="pop-name">GFC 타워 전망대</span></button>
+      <button id="cam-bryantPark" class="pop-item cam-btn" data-camera="bryantPark" type="button"><span class="pop-name">포스코센터 &amp; 선릉 도심숲</span></button>
+      <button id="cam-waterfront" class="pop-item cam-btn" data-camera="waterfront" type="button"><span class="pop-name">한강 · 탄천 워터프론트</span></button>
+      <button id="cam-drone" class="pop-item cam-btn" data-camera="drone" type="button"><span class="pop-name">서울 테헤란로 드론 뷰</span></button>
+    </div>
   </div>
 
-  <!-- Full-Screen Interactive Seoul Teheran-ro Street Map ([M]) -->
-  <section id="fullmap-modal" class="fullmap-modal hidden" role="dialog" aria-modal="true" aria-label="서울 테헤란로 인터랙티브 스트리트 맵">
+  <!-- Full-Screen Interactive Sejong City & Seoul Teheran-ro Street Map ([M]) -->
+  <section id="fullmap-modal" class="fullmap-modal hidden" role="dialog" aria-modal="true" aria-label="세종특별자치시 및 서울 테헤란로 인터랙티브 스트리트 맵">
     <div id="fullmap-canvas-wrap" class="fullmap-canvas-wrap">
       <canvas id="fullmap-canvas"></canvas>
     </div>
 
     <div class="fullmap-header">
       <div class="panel fullmap-title">
-        <span class="mta-bullet" aria-hidden="true" title="서울 지하철 2호선">2</span>
+        <span class="mta-bullet" aria-hidden="true" title="세종 · 서울 아틀라스">S</span>
         <div>
-          <h2>서울 테헤란로 스트리트 아틀라스</h2>
-          <p id="fullmap-player-info" class="fullmap-subtitle">현재 위치: 테헤란로 역삼역 사거리</p>
+          <h2 id="fullmap-city-title">세종시 · 서울시 스트리트 아틀라스</h2>
+          <p id="fullmap-player-info" class="fullmap-subtitle">현재 위치: 한누리대로 · 다솜로 · 테헤란로</p>
         </div>
+      </div>
+      <div class="panel fullmap-city-switch" role="group" aria-label="지도 도시 영역 선택">
+        <button id="fullmap-city-sejong" class="fullmap-city-btn active" data-map-city="sejong" type="button">세종시</button>
+        <button id="fullmap-city-seoul" class="fullmap-city-btn" data-map-city="seoul" type="button">서울시</button>
       </div>
       <label class="panel fullmap-search-wrap">
         <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
-        <input id="fullmap-search" class="fullmap-search" type="text" placeholder="거리명 및 랜드마크 검색 — 테헤란로, 강남대로, 코엑스, 선릉…" aria-label="거리 또는 랜드마크 검색" autocomplete="off" spellcheck="false" />
+        <input id="fullmap-search" class="fullmap-search" type="text" placeholder="한누리대로, 다솜로, 정부세종청사, 국립세종도서관 검색…" aria-label="거리 또는 랜드마크 검색" autocomplete="off" spellcheck="false" />
       </label>
       <button id="close-fullmap-btn" class="panel tool-btn fullmap-close" type="button" title="지도 닫기 [M / Esc]">
         <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg><span class="tool-label">닫기</span><kbd>Esc</kbd>

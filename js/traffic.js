@@ -75,10 +75,10 @@ function createBusDestinationTexture() {
     ['740', '공덕역 ↔ 삼성역 · 코엑스', '#0058b8', '#ff9d1c'],
     ['146', '노원 ↔ 강남역 · 역삼역', '#0058b8', '#ff9d1c'],
     ['341', '하남 ↔ 강남역 · 테헤란로', '#0058b8', '#ff9d1c'],
-    ['9408', '분당 ↔ 테헤란로 · 신논현', '#c8102e', '#ff7878'],
-    ['9711', '일산 ↔ 양재역 · 테헤란로', '#c8102e', '#ff7878'],
-    ['강남07', '수서역 ↔ 코엑스 · 삼성역', '#00a84d', '#72f099'],
-    ['N13', '심야N13 · 강남 ↔ 종로', '#e09800', '#ffe484']
+    ['B0', '한누리대로 순환 · 정부세종청사 ↔ 세종시청', '#c8102e', '#ffd480'],
+    ['B1', '정부세종청사 · 다솜로 ↔ 오송역 (KTX)', '#c8102e', '#ffd480'],
+    ['B2', '반석역 ↔ 한누리대로 · 절재로 관공서', '#00a84d', '#72f099'],
+    ['1001', '세종시청 · 도움6로 ↔ 국책연구단지', '#0058b8', '#ffe484']
   ];
   routes.forEach(([route, dest, badgeBg, textCol], idx) => {
     const y0 = idx * 64;
@@ -105,9 +105,9 @@ function createBusDestinationTexture() {
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
 // =========================================================================
-// DYNAMIC TEHERAN-RO TRAFFIC CONGESTION & DENSITY PROFILES
+// DYNAMIC TEHERAN-RO & SEJONG GOV CORRIDOR TRAFFIC CONGESTION & DENSITY PROFILES
 // =========================================================================
-// Realistic Seoul Teheran-ro traffic profiles by time-of-day:
+// Realistic Korean metropolitan & Sejong government corridor traffic profiles by time-of-day:
 // - golden (18:30): Evening rush hour peak jam (퇴근길 극심한 정체, density 100%, avg ~18 km/h)
 // - midday (13:00): Regular business traffic flow (한낮 정상 소통, density 75%, avg ~42 km/h)
 // - twilight (20:00): Evening dining & entertainment movement (저녁 상권 이동 서행, density 88%, avg ~32 km/h)
@@ -125,7 +125,7 @@ const TIME_CONGESTION_PROFILES = {
     timeHeadway: 1.8,
     accelFactor: 0.7,
     statusKo: '정체 심각',
-    label: '테헤란로 퇴근길 정체 심각 (평균 18km/h)'
+    label: '테헤란로 · 세종청사 퇴근길 정체 (18km/h)'
   },
   midday: {
     id: 'midday',
@@ -139,7 +139,7 @@ const TIME_CONGESTION_PROFILES = {
     timeHeadway: 1.3,
     accelFactor: 1.0,
     statusKo: '원활',
-    label: '테헤란로 주간 통행 원활 (평균 42km/h)'
+    label: '테헤란로 · 한누리대로 주간 원활 (42km/h)'
   },
   twilight: {
     id: 'twilight',
@@ -153,11 +153,11 @@ const TIME_CONGESTION_PROFILES = {
     timeHeadway: 1.5,
     accelFactor: 0.85,
     statusKo: '서행',
-    label: '테헤란로 저녁 서행 (평균 32km/h)'
+    label: '도심 · 관공서 저녁 서행 (32km/h)'
   },
   midnight: {
     id: 'midnight',
-    nameKo: '심야 강남 야경 (23:30)',
+    nameKo: '심야 야경 (23:30)',
     congestionLevel: 'light',
     congestionIndex: 0.18,
     densityRatio: 0.40,
@@ -167,7 +167,7 @@ const TIME_CONGESTION_PROFILES = {
     timeHeadway: 1.0,
     accelFactor: 1.3,
     statusKo: '매우 원활',
-    label: '테헤란로 심야 소통 원활 (평균 60km/h)'
+    label: '심야 한누리대로 · 테헤란로 원활 (60km/h)'
   }
 };
 
@@ -178,6 +178,11 @@ function getCongestionProfile(timeId) {
 function isTeheranRoCoordinate(x, z) {
   // Teheran-ro corridor: Street 42 centered at z ~ 0.3 extending east-west between Gangnam Stn (x ~ -1000) and Samseong Stn (x ~ 650)
   return Math.abs(z) < 55 && x >= -1400 && x <= 1000;
+}
+
+function isSejongGovCoordinate(x, z) {
+  // Sejong government-complex corridors: Dasom/Jeoljae/Doum-ro (z in [-2600, -1100]) or Boram Civic Center (z in [4500, 5000])
+  return (z >= -2600 && z <= -1100 && x >= -1600 && x <= 800) || (z >= 4500 && z <= 5000 && x >= 100 && x <= 750);
 }
 
 function calculateTargetActiveCount(totalPool = 212, timeId = 'golden') {
@@ -1616,8 +1621,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     v.yielding = false;
     v.wait = 0;
     const midZ = e.sz + e.dz * s;
-    const onTeheran = isTeheranRoCoordinate(focusX, midZ) || Math.abs(midZ) < 55;
-    const spdMult = onTeheran ? currentCongestionProfile.teheranSpeedMult : currentCongestionProfile.speedMultiplier;
+    const onCorridor = isTeheranRoCoordinate(focusX, midZ) || Math.abs(midZ) < 55 || isSejongGovCoordinate(focusX, midZ);
+    const spdMult = onCorridor ? currentCongestionProfile.teheranSpeedMult : currentCongestionProfile.speedMultiplier;
     v.v0 = (v.baseV0 || v.v0) * spdMult;
     const bd = v.baseDriver || v.driver;
     v.driver = {
@@ -1974,8 +1979,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     const prof = currentCongestionProfile;
     for (let i = 0; i < vehicles.length; i++) {
       const v = vehicles[i];
-      const onTeheran = isTeheranRoCoordinate(v.x, v.z) || (v.edge && Math.abs(v.edge.sz) < 55);
-      const spdMult = onTeheran ? prof.teheranSpeedMult : prof.speedMultiplier;
+      const onCorridor = isTeheranRoCoordinate(v.x, v.z) || (v.edge && Math.abs(v.edge.sz) < 55) || isSejongGovCoordinate(v.x, v.z);
+      const spdMult = onCorridor ? prof.teheranSpeedMult : prof.speedMultiplier;
       v.v0 = (v.baseV0 || v.v0) * spdMult;
       const bd = v.baseDriver || v.driver;
       v.driver = {
@@ -2005,8 +2010,10 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   function getCongestionStats() {
     let active = 0;
     let teheranCount = 0;
+    let sejongCount = 0;
     let totalSpeed = 0;
     let teheranSpeed = 0;
+    let sejongSpeed = 0;
 
     for (let i = 0; i < vehicles.length; i++) {
       const v = vehicles[i];
@@ -2017,11 +2024,15 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       if (isTeheranRoCoordinate(v.x, v.z) || (v.edge && Math.abs(v.edge.sz) < 55)) {
         teheranCount++;
         teheranSpeed += kmh;
+      } else if (isSejongGovCoordinate(v.x, v.z)) {
+        sejongCount++;
+        sejongSpeed += kmh;
       }
     }
 
     const avgSpeed = active > 0 ? totalSpeed / active : 0;
     const avgTeheranSpeed = teheranCount > 0 ? teheranSpeed / teheranCount : avgSpeed;
+    const avgSejongSpeed = sejongCount > 0 ? sejongSpeed / sejongCount : avgSpeed;
 
     return {
       timeId: activeTimeSetting,
@@ -2033,6 +2044,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       totalPool: vehicles.length,
       averageSpeedKmh: Math.round(avgSpeed),
       teheranSpeedKmh: Math.round(avgTeheranSpeed),
+      sejongSpeedKmh: Math.round(avgSejongSpeed),
       statusKo: currentCongestionProfile.statusKo,
       label: currentCongestionProfile.label
     };
@@ -2658,5 +2670,6 @@ export {
   TIME_CONGESTION_PROFILES,
   getCongestionProfile,
   isTeheranRoCoordinate,
+  isSejongGovCoordinate,
   calculateTargetActiveCount
 };

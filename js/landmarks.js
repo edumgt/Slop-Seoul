@@ -1061,6 +1061,123 @@ function buildLandmarks(scene) {
     group.add(inst);
   }
 
+  // =========================================================================
+  // 12. SEJONG CITY GOVERNMENT COMPLEX ARCHITECTURE (국립세종도서관 · 대통령기록관 · 정부세종청사 표지석)
+  // =========================================================================
+  {
+    const sejongBlueCanvas = document.createElement('canvas');
+    sejongBlueCanvas.width = 512;
+    sejongBlueCanvas.height = 192;
+    const sjCtx = sejongBlueCanvas.getContext('2d');
+    sjCtx.fillStyle = '#072a5c';
+    sjCtx.fillRect(0, 0, 512, 192);
+    sjCtx.strokeStyle = '#d4af37';
+    sjCtx.lineWidth = 6;
+    sjCtx.strokeRect(8, 8, 496, 176);
+    sjCtx.fillStyle = '#ffffff';
+    sjCtx.font = '800 42px Pretendard, sans-serif';
+    sjCtx.textAlign = 'center';
+    sjCtx.textBaseline = 'middle';
+    sjCtx.fillText('정부세종청사 · 행정중심도시', 256, 70);
+    sjCtx.fillStyle = '#a9cdf8';
+    sjCtx.font = '600 22px Pretendard, Inter, sans-serif';
+    sjCtx.fillText('한누리대로 · 다솜로 · 절재로 · 도움로', 256, 128);
+    const sejongSignTex = new THREE.CanvasTexture(sejongBlueCanvas);
+    sejongSignTex.colorSpace = THREE.SRGBColorSpace;
+    const sejongSignMat = new THREE.MeshBasicNodeMaterial({ map: sejongSignTex });
+
+    // A. 국립세종도서관 (National Library of Sejong) at (-110, -2430) — curved open-book roof silhouette
+    const libGroup = new THREE.Group();
+    libGroup.position.set(-110, 0, -2430);
+
+    const libPlinth = new THREE.Mesh(new THREE.BoxGeometry(52, 1.4, 34), limestoneTrimMat);
+    libPlinth.position.y = 0.7;
+    libPlinth.castShadow = true;
+    libPlinth.receiveShadow = true;
+    libGroup.add(libPlinth);
+
+    const libCore = new THREE.Mesh(new THREE.BoxGeometry(40, 14, 24), landmarkSilverCurtainMat);
+    libCore.position.y = 8.4;
+    libCore.castShadow = true;
+    libCore.receiveShadow = true;
+    libGroup.add(libCore);
+
+    const libGlowHall = new THREE.Mesh(new THREE.BoxGeometry(34, 6.2, 24.4), warmFloodMat);
+    libGlowHall.position.y = 6.2;
+    libGroup.add(libGlowHall);
+
+    // Sweeping parabolic "open book pages" canopy
+    const wingMat = stainlessSteelMat;
+    for (const side of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(24, 1.6, 30), wingMat);
+      wing.position.set(side * 11.2, 18.2, 0);
+      wing.rotation.z = side * 0.24;
+      wing.castShadow = true;
+      libGroup.add(wing);
+    }
+    const roofCap = new THREE.Mesh(new THREE.BoxGeometry(10, 1.5, 30), wingMat);
+    roofCap.position.y = 15.8;
+    libGroup.add(roofCap);
+
+    const libSign = new THREE.Mesh(new THREE.PlaneGeometry(16, 6), sejongSignMat);
+    libSign.position.set(0, 11.5, 12.3);
+    libGroup.add(libSign);
+
+    group.add(libGroup);
+    colliders.push({ minX: -136, maxX: -84, minZ: -2447, maxZ: -2413, maxY: 22 });
+
+    // B. 대통령기록관 (Presidential Archives) at (-265, -2465) — transparent glass cube & bronze inner vault
+    const archGroup = new THREE.Group();
+    archGroup.position.set(-265, 0, -2465);
+
+    const archBase = new THREE.Mesh(new THREE.BoxGeometry(36, 2.0, 36), limestoneTrimMat);
+    archBase.position.y = 1.0;
+    archBase.receiveShadow = true;
+    archGroup.add(archBase);
+
+    const archVault = new THREE.Mesh(new THREE.BoxGeometry(16, 18, 16), landmarkBronzeCurtainMat);
+    archVault.position.y = 11.0;
+    archVault.castShadow = true;
+    archGroup.add(archVault);
+
+    const archFrameMat = darkBronzeFrameMat;
+    const archShell = new THREE.Mesh(new THREE.BoxGeometry(26, 24, 26), landmarkSilverCurtainMat);
+    archShell.position.y = 14.0;
+    archShell.castShadow = true;
+    archGroup.add(archShell);
+
+    const archRoof = new THREE.Mesh(new THREE.BoxGeometry(28, 1.8, 28), archFrameMat);
+    archRoof.position.y = 26.9;
+    archGroup.add(archRoof);
+
+    group.add(archGroup);
+    colliders.push({ minX: -283, maxX: -247, minZ: -2483, maxZ: -2447, maxY: 28 });
+
+    // C. 정부세종청사 관공서 안내 모뉴먼트 Pylon at (-40, -1430) facing south toward 절재로 (59 St)
+    const monGroup = new THREE.Group();
+    monGroup.position.set(-40, 0, -1430);
+
+    const monPlinth = new THREE.Mesh(new THREE.BoxGeometry(14, 1.2, 6), limestoneTrimMat);
+    monPlinth.position.y = 0.6;
+    monGroup.add(monPlinth);
+
+    const monSlab = new THREE.Mesh(new THREE.BoxGeometry(11.6, 5.4, 1.1), darkBronzeFrameMat);
+    monSlab.position.y = 3.9;
+    monSlab.castShadow = true;
+    monGroup.add(monSlab);
+
+    const monFront = new THREE.Mesh(new THREE.PlaneGeometry(11.0, 4.1), sejongSignMat);
+    monFront.position.set(0, 4.1, 0.58);
+    monGroup.add(monFront);
+    const monBack = new THREE.Mesh(new THREE.PlaneGeometry(11.0, 4.1), sejongSignMat);
+    monBack.rotation.y = Math.PI;
+    monBack.position.set(0, 4.1, -0.58);
+    monGroup.add(monBack);
+
+    group.add(monGroup);
+    colliders.push({ minX: -47, maxX: -33, minZ: -1433, maxZ: -1427, maxY: 7 });
+  }
+
   batchStaticGroupMeshes(group, new Set([stainlessSteelMat]));
 
   scene.add(group);
