@@ -48,6 +48,7 @@
   <link rel="modulepreload" href="./js/building-collision.js" />
   <link rel="modulepreload" href="./js/fire-escapes.js" />
   <link rel="modulepreload" href="./js/landmarks.js" />
+  <link rel="modulepreload" href="./js/sejong-lighting.js" />
   <link rel="modulepreload" href="./js/sejong-landmarks.js" />
   <link rel="modulepreload" href="./js/street-details.js" />
   <link rel="modulepreload" href="./js/street-props.js" />
@@ -244,7 +245,7 @@
   <!-- Bottom-Left: Street-Name Signs & Live GPS Radar Minimap -->
   <div class="hud hud-bottom-left">
     <div id="hud-location" class="location" aria-live="off"></div>
-    <aside id="minimap-card" class="panel radar" aria-label="실시간 테헤란로 레이더 미니맵" title="서울 테헤란로 전체 지도 열기 [M]">
+    <aside id="minimap-card" class="panel radar" aria-label="세종특별자치시 실시간 레이더 미니맵" title="세종특별자치시 전체 지도 열기 [M]">
       <canvas id="minimap-canvas"></canvas>
       <span class="radar-north" aria-hidden="true">N</span>
       <kbd class="radar-key">M</kbd>
@@ -256,16 +257,16 @@
     <div id="hud-controls-hint" class="controls-hint"></div>
     <nav id="mode-switch" class="panel mode-switch" aria-label="이동 수단 선택">
       <span class="mode-indicator" aria-hidden="true"></span>
-      <button id="mode-person" class="mode-btn" data-mode="person" type="button" title="도보 (보행자) [1]">
+      <button id="mode-person" class="mode-btn" data-mode="person" type="button" title="세종 도보 (보행자) [1]">
         <svg class="icon" aria-hidden="true"><use href="#i-walk"/></svg><span class="mode-label">도보</span><kbd>1</kbd>
       </button>
-      <button id="mode-car" class="mode-btn active" data-mode="car" type="button" title="서울 택시 [2]">
-        <svg class="icon" aria-hidden="true"><use href="#i-car"/></svg><span class="mode-label">서울 택시</span><kbd>2</kbd>
+      <button id="mode-car" class="mode-btn active" data-mode="car" type="button" title="세종 행복택시 [2]">
+        <svg class="icon" aria-hidden="true"><use href="#i-car"/></svg><span class="mode-label">세종 택시</span><kbd>2</kbd>
       </button>
-      <button id="mode-cyclist" class="mode-btn" data-mode="cyclist" type="button" title="서울 따릉이 [3]">
-        <svg class="icon" aria-hidden="true"><use href="#i-bike"/></svg><span class="mode-label">따릉이</span><kbd>3</kbd>
+      <button id="mode-cyclist" class="mode-btn" data-mode="cyclist" type="button" title="세종 어울링 자전거 [3]">
+        <svg class="icon" aria-hidden="true"><use href="#i-bike"/></svg><span class="mode-label">어울링</span><kbd>3</kbd>
       </button>
-      <button id="mode-helicopter" class="mode-btn" data-mode="helicopter" type="button" title="한강 투어 헬기 [4]">
+      <button id="mode-helicopter" class="mode-btn" data-mode="helicopter" type="button" title="금강·세종 투어 헬기 [4]">
         <svg class="icon" aria-hidden="true"><use href="#i-heli"/></svg><span class="mode-label">헬기</span><kbd>4</kbd>
       </button>
     </nav>
@@ -276,14 +277,14 @@
     <section id="hud-cluster" class="panel cluster" aria-label="차량 주행 정보 및 카메라">
       <div class="gauge">
         <div class="gauge-top">
-          <span id="hud-active-mode" class="gauge-label">서울 택시</span>
+          <span id="hud-active-mode" class="gauge-label">세종 택시 (Sejong Taxi)</span>
           <span class="gauge-alt"><span class="gauge-alt-label">고도</span> <span id="hud-altitude">0</span> m</span>
         </div>
         <div class="gauge-speed"><span id="hud-speed">0</span><span class="gauge-unit">km/h</span></div>
         <div class="gauge-meter" aria-hidden="true"><span id="hud-speed-meter"></span></div>
-        <div class="gauge-traffic" id="hud-traffic-info" title="테헤란로 실시간 교통 밀도 및 정체 수준">
-          <span class="traffic-dot heavy" id="hud-traffic-dot"></span>
-          <span id="hud-traffic-label">테헤란로 정체 심각 (18km/h)</span>
+        <div class="gauge-traffic" id="hud-traffic-info" title="세종청사 · 한누리대로 실시간 교통 밀도 및 정체 수준">
+          <span class="traffic-dot smooth" id="hud-traffic-dot"></span>
+          <span id="hud-traffic-label">세종시 원활 · 0대</span>
         </div>
       </div>
       <div id="camera-switch" class="camera-switch">
@@ -355,8 +356,8 @@
       <div class="panel fullmap-title">
         <span class="mta-bullet" aria-hidden="true" title="세종 · 서울 아틀라스">S</span>
         <div>
-          <h2 id="fullmap-city-title">세종시 · 서울시 스트리트 아틀라스</h2>
-          <p id="fullmap-player-info" class="fullmap-subtitle">현재 위치: 한누리대로 · 다솜로 · 테헤란로</p>
+          <h2 id="fullmap-city-title">세종특별자치시 스트리트 아틀라스</h2>
+          <p id="fullmap-player-info" class="fullmap-subtitle">세종특별자치시 · 현재 위치: 다솜로 · 한누리대로</p>
         </div>
       </div>
       <div class="panel fullmap-city-switch" role="group" aria-label="지도 도시 영역 선택">
@@ -388,7 +389,7 @@
       </div>
       <div class="panel map-zoom">
         <button id="map-center-player" class="icon-btn" type="button" title="현재 위치 중심으로 보기" aria-label="내 위치"><svg class="icon" aria-hidden="true"><use href="#i-locate"/></svg></button>
-        <button id="map-view-all" class="icon-btn" type="button" title="테헤란로 전역 보기" aria-label="전체 보기"><svg class="icon" aria-hidden="true"><use href="#i-fit"/></svg></button>
+        <button id="map-view-all" class="icon-btn" type="button" title="세종특별자치시 전역 보기" aria-label="전체 보기"><svg class="icon" aria-hidden="true"><use href="#i-fit"/></svg></button>
       </div>
     </div>
 

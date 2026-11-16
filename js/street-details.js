@@ -25,11 +25,7 @@ import { bryantParkLawn } from './landmarks.js';
 
 // Instanced street furniture, traffic signals, trees and nearby light pools.
 
-function createStreetSignBladeTexture(label) {
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 64;
-  const ctx = c.getContext('2d');
+function drawStreetSignBlade(ctx, label) {
   // Korean road sign blue (#003e94) with crisp white border and typography
   ctx.fillStyle = '#003e94';
   ctx.fillRect(0, 0, 256, 64);
@@ -47,10 +43,19 @@ function createStreetSignBladeTexture(label) {
     ctx.fillText(en, 128, 45);
   } else {
     ctx.font = '800 24px Pretendard, Inter, sans-serif';
-    ctx.fillText(label || '테헤란로', 128, 32);
+    ctx.fillText(label || '한누리대로', 128, 32);
   }
+}
+
+function createStreetSignBladeTexture(label) {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 64;
+  const ctx = c.getContext('2d');
+  drawStreetSignBlade(ctx, label);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.userData.ctx = ctx;
   return tex;
 }
 
@@ -145,10 +150,18 @@ function buildStreetDetails(scene, colliders = []) {
   lampBulbGlow.colorNode = mix(color(0x8f918c), color(0xfff1d6).mul(2.1), smoothstep(0.4, 1.1, cityUniforms.uInteriorGlow));
   const pedGlobeGlow = new THREE.MeshBasicNodeMaterial();
   pedGlobeGlow.colorNode = mix(color(0xd4d2c8), color(0xffe4b0).mul(1.95), smoothstep(0.4, 1.1, cityUniforms.uInteriorGlow));
+  const streetBladeTex = createStreetSignBladeTexture('한누리대로 · Sejong');
   const streetBladeMat = new THREE.MeshStandardNodeMaterial({
-    map: createStreetSignBladeTexture('테헤란로 · Teheran-ro'),
+    map: streetBladeTex,
     roughness: 0.32
   });
+  function setCity(cityId) {
+    const label = cityId === 'seoul' ? '테헤란로 · Teheran-ro' : '한누리대로 · 다솜로';
+    if (streetBladeTex.userData.ctx) {
+      drawStreetSignBlade(streetBladeTex.userData.ctx, label);
+      streetBladeTex.needsUpdate = true;
+    }
+  }
 
   // 12-inch three-section signal head (origin at its centre, y = 5.42): yellow housing, a tunnel visor over each lens
   // and a hanger to the mast arm, lenses on both faces (+-z) so it reads from both approaches; the lens material
@@ -1140,7 +1153,7 @@ function buildStreetDetails(scene, colliders = []) {
   }
 
   scene.add(group);
-  return { group, footprints, signalClock, signalIntersections, audioSignals, treeField, update };
+  return { group, footprints, signalClock, signalIntersections, audioSignals, treeField, update, setCity };
 }
 
 export { buildStreetDetails };

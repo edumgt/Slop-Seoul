@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, smoothstep } from 'three/tsl';
+import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, vec4, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
@@ -91,14 +91,27 @@ async function initApp() {
   // Firefox WebGL2 incurs a heavy renderbufferStorageMultisample + blitFramebuffer stall
   // on multisampled floating-point MRT post-processing render targets, so disable MSAA on Firefox.
   const isFirefox = typeof navigator !== 'undefined' && /Firefox\//.test(navigator.userAgent);
+  const isSoftwareGl = (() => {
+    try {
+      const gl = document.createElement('canvas').getContext('webgl2');
+      if (!gl) return true;
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      const param = ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER;
+      const gpu = String(gl.getParameter(param) || '');
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
+    } catch {
+      return false;
+    }
+  })();
   const renderer = new THREE.WebGPURenderer({
-    antialias: !isFirefox,
+    antialias: !isFirefox && !isSoftwareGl,
     powerPreference: 'high-performance',
     reversedDepthBuffer: true
   });
   renderer.setPixelRatio(1.0);
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = !isSoftwareGl;
   renderer.lighting = new ClusteredLighting(256, 32, 28, 48);
   container.appendChild(renderer.domElement);
 
@@ -129,7 +142,11 @@ async function initApp() {
   const boroughs = buildBoroughs(scene, { sidewalks: cityGrid.sidewalks });
   markInit('boroughs');
   await showLoadingStage('Building landmarks...', 'landmarks');
-  const { colliders: landmarkColliders } = buildLandmarks(scene);
+  const { colliders: landmarkColliders, sejongLighting, setActiveCity: setLandmarksCity } = buildLandmarks(scene);
+  if (sejongLighting) {
+    const initSejongState = sejongLighting.setTimeOfDay(lightingSystem.activePresetId, { immediate: true });
+    document.body.dataset.sejongLighting = initSejongState.activeMode;
+  }
   markInit('landmarks');
   await showLoadingStage('Generating building footprints and facades...', 'blocks');
   const cityBlocks = buildCityBlocks(scene, landmarkColliders);
@@ -227,7 +244,13 @@ async function initApp() {
   const cullingRoots = ['ManhattanCityGrid', 'ManhattanCityBlocks', 'ManhattanStreetDetails', 'ManhattanLandmarks', 'Boroughs', 'RoadMarkings']
     .map((name) => scene.getObjectByName(name))
     .filter(Boolean);
-  setupSceneCulling(scene, cullingRoots, lightingSystem.sunLight.shadow);
+  const sceneCullingControl = setupSceneCulling(scene, cullingRoots, lightingSystem.sunLight.shadow);
+  let worldCitySplitReady = false;
+  function applyWorldCityVisibility(cityId) {
+    if (!worldCitySplitReady) return;
+    setLandmarksCity?.(cityId);
+    sceneCullingControl?.setActiveCity(cityId);
+  }
 
   // Initialize static world matrices once, including the chunks and shadow proxies created above.
   // Crowd, tree and building-detail animation changes instance/pose buffers, not Object3D transforms.
@@ -268,24 +291,27 @@ async function initApp() {
   const scenePassNormal = scenePass.getTextureNode('normal');
   const scenePassMetalRough = scenePass.getTextureNode('metalRough');
 
-  const ssrPass = ssr(scenePassColor, scenePassDepth, scenePassNormal, {
-    metalnessNode: scenePassMetalRough.r,
-    roughnessNode: scenePassMetalRough.g,
-    camera: cameraSystem.camera
-  });
-  ssrPass.resolutionScale = 0.5;
-  ssrPass.blurQuality = 1;
-  ssrPass.maxDistance.value = 42;
-  ssrPass.thickness.value = 0.85;
-  // Fewer coarse steps, then refine detected hits to keep reflection edges precise.
-  ssrPass.quality.value = 0.25;
-  ssrPass.binaryRefine = true;
-  ssrPass.intensity.value = 0.50;
-  ssrPass.screenEdgeFadeBlack = true;
+  let reflections = vec4(0);
+  if (!isSoftwareGl) {
+    const ssrPass = ssr(scenePassColor, scenePassDepth, scenePassNormal, {
+      metalnessNode: scenePassMetalRough.r,
+      roughnessNode: scenePassMetalRough.g,
+      camera: cameraSystem.camera
+    });
+    ssrPass.resolutionScale = 0.5;
+    ssrPass.blurQuality = 1;
+    ssrPass.maxDistance.value = 42;
+    ssrPass.thickness.value = 0.85;
+    // Fewer coarse steps, then refine detected hits to keep reflection edges precise.
+    ssrPass.quality.value = 0.25;
+    ssrPass.binaryRefine = true;
+    ssrPass.intensity.value = 0.50;
+    ssrPass.screenEdgeFadeBlack = true;
 
-  // Roughness mip blur must not spread reflections back onto matte or nonreflective surfaces.
-  const reflectionMask = scenePassMetalRough.r.greaterThan(0).select(smoothstep(maxSSRRoughness, 0.55, scenePassMetalRough.g), 0);
-  const reflections = ssrPass.mul(reflectionMask);
+    // Roughness mip blur must not spread reflections back onto matte or nonreflective surfaces.
+    const reflectionMask = scenePassMetalRough.r.greaterThan(0).select(smoothstep(maxSSRRoughness, 0.55, scenePassMetalRough.g), 0);
+    reflections = ssrPass.mul(reflectionMask);
+  }
   const colorGrade = createPostProcessing(renderer, scenePassColor, reflections, {
     sceneDepth: scenePassDepth,
     sceneNormal: scenePassNormal,
@@ -301,9 +327,11 @@ async function initApp() {
     uWeatherFogColor: weatherSystem.uWeatherFogColor,
     uLightningFlash: weatherSystem.uLightningFlash,
     uLightningIntensity: weatherSystem.uLightningIntensity,
-    uLightningOrigin: weatherSystem.uLightningOrigin
+    uLightningOrigin: weatherSystem.uLightningOrigin,
+    skipBloom: isSoftwareGl
   });
   const renderPipeline = new THREE.RenderPipeline(renderer, colorGrade.outputNode);
+  const renderFrame = () => renderPipeline.render();
 
   // 6. Wire UI Controls (Strictly using safe DOM APIs: textContent, classList, addEventListener)
   const cityButtons = document.querySelectorAll('.city-btn[data-city]');
@@ -379,6 +407,36 @@ async function initApp() {
     modeSwitch.style.setProperty('--ind-w', `${active.offsetWidth}px`);
   }
 
+  const CITY_VEHICLE_LABELS = {
+    sejong: {
+      person: { btnLabel: '도보', btnTitle: '세종 도보 (보행자) [1]', hudLabel: '도보 (Sejong Walk)' },
+      car: { btnLabel: '세종 택시', btnTitle: '세종 행복택시 [2]', hudLabel: '세종 택시 (Sejong Taxi)' },
+      cyclist: { btnLabel: '어울링', btnTitle: '세종 어울링 자전거 [3]', hudLabel: '세종 어울링 (Eoulling)' },
+      helicopter: { btnLabel: '헬기', btnTitle: '금강·세종 투어 헬기 [4]', hudLabel: '금강·세종 헬기 (Helicopter)' }
+    },
+    seoul: {
+      person: { btnLabel: '도보', btnTitle: '서울 도보 (보행자) [1]', hudLabel: '도보 (Seoul Walk)' },
+      car: { btnLabel: '서울 택시', btnTitle: '서울 택시 [2]', hudLabel: '서울 택시 (Seoul Taxi)' },
+      cyclist: { btnLabel: '따릉이', btnTitle: '서울 따릉이 [3]', hudLabel: '서울 따릉이 (Ddareungi)' },
+      helicopter: { btnLabel: '헬기', btnTitle: '한강·테헤란 헬기 [4]', hudLabel: '한강·테헤란 헬기 (Helicopter)' }
+    }
+  };
+
+  function updateVehicleLabelsForCity(cityId) {
+    const labels = CITY_VEHICLE_LABELS[cityId] || CITY_VEHICLE_LABELS.sejong;
+    modeButtons.forEach((btn) => {
+      const m = btn.getAttribute('data-mode');
+      const spec = labels[m];
+      if (!spec) return;
+      btn.title = spec.btnTitle;
+      const span = btn.querySelector('.mode-label');
+      if (span) span.textContent = spec.btnLabel;
+    });
+    const activeSpec = labels[controllerManager.activeMode];
+    if (elMode) elMode.textContent = activeSpec ? activeSpec.hudLabel : controllerManager.getActiveEntity().label;
+    placeModeIndicator();
+  }
+
   function selectMode(mode) {
     controllerManager.setMode(mode);
     touchControls.setMode(controllerManager.activeMode);
@@ -387,9 +445,7 @@ async function initApp() {
       btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
     });
     document.body.dataset.mode = mode;
-    placeModeIndicator();
-    const ent = controllerManager.getActiveEntity();
-    if (elMode) elMode.textContent = ent.label;
+    updateVehicleLabelsForCity(activeCity);
     renderControlHints(mode);
 
     // If currently on a static scenic camera, switch to 3rd-Person Chase so user sees their selected character/vehicle
@@ -433,6 +489,8 @@ async function initApp() {
     const region = getCityRegion(cityId);
     activeCity = region.id;
     document.body.dataset.city = activeCity;
+    applyWorldCityVisibility(activeCity);
+    if (streetDetails.setCity) streetDetails.setCity(activeCity);
 
     cityButtons.forEach((btn) => {
       const isActive = btn.getAttribute('data-city') === activeCity;
@@ -456,6 +514,8 @@ async function initApp() {
       if (nameEl) nameEl.textContent = `${nextRegion.shortName} 랜드마크로 전환 →`;
       if (subEl) subEl.textContent = nextRegion.trafficCorridor;
     }
+
+    updateVehicleLabelsForCity(activeCity);
 
     const activePreset = cameraSystem.getActivePreset();
     if (activePreset && activePreset.city && activePreset.city !== 'all' && activePreset.city !== activeCity) {
@@ -491,12 +551,16 @@ async function initApp() {
 
   function selectTime(timeId) {
     lightingSystem.applyPreset(timeId);
-    colorGrade.applyPreset(lightingSystem.activePresetId);
+    if (colorGrade) colorGrade.applyPreset(lightingSystem.activePresetId);
     if (trafficSystem?.setTimeOfDay) {
       trafficSystem.setTimeOfDay(timeId);
     }
     if (weatherSystem) {
       weatherSystem.applyWeather(weatherSystem.getWeather(), timeId);
+    }
+    if (sejongLighting) {
+      const sejongState = sejongLighting.setTimeOfDay(timeId);
+      document.body.dataset.sejongLighting = sejongState.activeMode;
     }
     timeButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-time') === timeId);
@@ -589,8 +653,8 @@ async function initApp() {
     if (btn && e.detail > 0) btn.blur();
   });
 
-  // Where you are: the place's name over its street corner, drawn as a pair of NYC street-name signs
-  const roadNames = new Set(ROADS.map((r) => r.name));
+  // Where you are: the place's name over its street corner, drawn as a pair of city street-name signs
+  const roadNames = new Set(ROADS.flatMap((r) => [r.name, r.sejongName, r.seoulName].filter(Boolean)));
   const placeNames = new Set(NYC_LANDMARKS.map((l) => l.name));
   let locationText = '';
   function renderLocation(label) {
@@ -644,6 +708,7 @@ async function initApp() {
   }
 
   function teleportTo(x, z, heading = Math.PI) {
+    const cityScope = typeof activeCity === 'string' ? activeCity : undefined;
     const destination = controllerManager.teleportActiveTo(x, z, heading);
     touchControls.reset();
     gamepadControls.reset();
@@ -652,8 +717,11 @@ async function initApp() {
     mapSystem.waypoint = {
       x: destination.x,
       z: destination.z,
-      name: getLocationLabel(destination.x, destination.z)
+      name: getLocationLabel(destination.x, destination.z, cityScope)
     };
+    if (typeof renderLocation === 'function') {
+      renderLocation(getLocationLabel(destination.x, destination.z, cityScope));
+    }
     return destination;
   }
 
@@ -676,6 +744,12 @@ async function initApp() {
   teleportButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       const key = btn.getAttribute('data-teleport');
+      if (typeof TELEPORT_CITY_MAP !== 'undefined' && typeof selectCity === 'function') {
+        const targetCity = TELEPORT_CITY_MAP[key] || 'seoul';
+        if (targetCity !== activeCity) {
+          selectCity(targetCity, { teleport: false, syncMap: true });
+        }
+      }
       const loc = TELEPORT_LOCATIONS[key];
       if (loc) {
         teleportTo(loc.x, loc.z, loc.heading);
@@ -686,6 +760,7 @@ async function initApp() {
 
   const openMapBtn = document.getElementById('btn-open-map');
   if (openMapBtn) openMapBtn.addEventListener('click', () => mapSystem.toggleFullMap(true));
+  mapSystem.setActiveCity(activeCity, false);
 
   mapSystem.onCityChange = (cityId) => {
     selectCity(cityId, { teleport: true, syncMap: false });
@@ -705,16 +780,6 @@ async function initApp() {
       closePopovers();
     });
   }
-
-  teleportButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const key = btn.getAttribute('data-teleport');
-      const targetCity = TELEPORT_CITY_MAP[key] || 'seoul';
-      if (targetCity !== activeCity) {
-        selectCity(targetCity, { teleport: false, syncMap: true });
-      }
-    });
-  });
 
   if (hudToggleBtn) {
     hudToggleBtn.addEventListener('click', () => {
@@ -776,7 +841,7 @@ async function initApp() {
     }
   });
 
-  window.addEventListener('resize', () => {
+  const syncViewportSize = () => {
     cameraSystem.onResize(window.innerWidth, window.innerHeight);
     renderer.setSize(window.innerWidth, window.innerHeight);
     placeModeIndicator();
@@ -784,7 +849,9 @@ async function initApp() {
       mapSystem.resizeFullCanvas();
       mapSystem.renderFullMap();
     }
-  });
+  };
+  window.addEventListener('resize', syncViewportSize);
+  syncViewportSize();
 
   // Initialize the UI, selected city region (Sejong by default on fresh visit), and chase camera.
   selectMode(controllerManager.activeMode);
@@ -804,9 +871,10 @@ async function initApp() {
     // An empty frame first: it sets up the post-processing chain, which configures the scene pass's render target
     // (MSAA samples, depth format), so the pipelines compiled below are the very ones the scene pass asks for
     scene.visible = false;
-    renderPipeline.render();
+    renderFrame();
     scene.visible = true;
     markInit('postFX');
+    if (isSoftwareGl) return;
 
     // Every visible object with frustum culling off (like the warm-up frame, see the loop). Plain meshes that share
     // a material share its shader, so one job compiles them in turn (the first build serves the rest); every
@@ -841,8 +909,10 @@ async function initApp() {
     });
 
     await showLoadingStage(`Compiling scene shaders... 0 / ${jobs.length} batches`, 'compile', false);
-    renderer.setRenderTarget(scenePass.renderTarget);
-    renderer.setMRT(sceneMRT);
+    if (scenePass && sceneMRT) {
+      renderer.setRenderTarget(scenePass.renderTarget);
+      renderer.setMRT(sceneMRT);
+    }
     const compile = async (object) => {
       // Each compile starts in a task of its own: compileAsync() keeps one precompilation state on the renderer,
       // which must not be mid-step for two of them in the same microtask checkpoint
@@ -865,8 +935,10 @@ async function initApp() {
       }
     };
     await Promise.all(Array.from({ length: COMPILE_POOL }, worker));
-    renderer.setMRT(null);
-    renderer.setRenderTarget(null);
+    if (scenePass && sceneMRT) {
+      renderer.setMRT(null);
+      renderer.setRenderTarget(null);
+    }
     for (const o of culled) o.frustumCulled = true;
   }
 
@@ -884,7 +956,27 @@ async function initApp() {
 
   if (elFps) elFps.textContent = '60';
 
-  renderer.setAnimationLoop((now) => {
+  function afterSoftwareDraw(cb) {
+    const gl = renderer.backend?.gl || renderer.domElement?.getContext('webgl2');
+    if (!gl || typeof gl.fenceSync !== 'function') {
+      setTimeout(cb, 150);
+      return;
+    }
+    const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gl.flush();
+    const poll = () => {
+      const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
+      if (state === gl.UNSIGNALED) {
+        setTimeout(poll, 10);
+      } else {
+        if (sync) gl.deleteSync(sync);
+        setTimeout(cb, 150);
+      }
+    };
+    setTimeout(poll, 10);
+  }
+
+  function tick(now) {
     const rawDt = (now - lastTime) * 0.001;
     lastTime = now;
     const dt = Math.min(Math.max(rawDt, 0.001), 0.05);
@@ -914,6 +1006,7 @@ async function initApp() {
     if (cityBlocks.updateLights) cityBlocks.updateLights(cameraSystem.camera);
     if (streetDetails.update) streetDetails.update(cameraSystem.camera);
     lightingSystem.update(cameraSystem.currentPos);
+    if (sejongLighting) sejongLighting.update(dt, elapsed);
     weatherSystem.update(dt, elapsed, cameraSystem.camera, cameraSystem.currentPos, lightingSystem.activePresetId);
     mapSystem.update();
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
@@ -922,29 +1015,41 @@ async function initApp() {
     for (const root of dynamicRoots) root.updateMatrixWorld();
 
     // Update camera matrix uniforms for screen-space depth/normal weather effects
-    colorGrade.update(cameraSystem.camera);
+    if (colorGrade) colorGrade.update(cameraSystem.camera);
 
     // Render frame via TSL RenderPipeline (SSR + Bloom)
     if (!warmedUp) {
-      // First frame = pipeline warm-up behind the loading screen, for what precompileShaders() can't reach (the shadow
-      // map passes): with frustum culling off, every visible material's pipelines compile now instead of stalling the
-      // first time the camera turns towards it (one chunk / shadow stand-in per shared pipeline is enough)
-      const culled = [];
-      const pipelines = new Set();
-      scene.traverseVisible((o) => {
-        const pipeline = o.userData.sharesPipelineWith || o;
-        if (pipelines.has(pipeline)) return;
-        pipelines.add(pipeline);
-        if (o.frustumCulled) {
-          culled.push(o);
-          o.frustumCulled = false;
-        }
-      });
-      renderPipeline.render();
-      for (const o of culled) o.frustumCulled = true;
-      markInit('warmup');
+      if (isSoftwareGl) {
+        worldCitySplitReady = true;
+        applyWorldCityVisibility(activeCity);
+        updateSceneCulling(cameraSystem.camera.position);
+        markInit('warmup');
+        renderFrame();
+      } else {
+        // First frame = pipeline warm-up behind the loading screen, for what precompileShaders() can't reach (the shadow
+        // map passes): with frustum culling off, every visible material's pipelines compile now instead of stalling the
+        // first time the camera turns towards it (one chunk / shadow stand-in per shared pipeline is enough)
+        const culled = [];
+        const pipelines = new Set();
+        scene.traverseVisible((o) => {
+          const pipeline = o.userData.sharesPipelineWith || o;
+          if (pipelines.has(pipeline)) return;
+          pipelines.add(pipeline);
+          if (o.frustumCulled) {
+            culled.push(o);
+            o.frustumCulled = false;
+          }
+        });
+        renderFrame();
+        for (const o of culled) o.frustumCulled = true;
+        worldCitySplitReady = true;
+        applyWorldCityVisibility(activeCity);
+        markInit('warmup');
+        renderFrame();
+      }
+    } else {
+      renderFrame();
     }
-    renderPipeline.render();
     if (!warmedUp) {
       warmedUp = true;
       markInit('firstFrame');
@@ -988,7 +1093,17 @@ async function initApp() {
       const where = cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos;
       renderLocation(getLocationLabel(where.x, where.z, activeCity));
     }
-  });
+  }
+
+  if (isSoftwareGl) {
+    const runSoftwareFrame = () => {
+      tick(performance.now());
+      afterSoftwareDraw(() => requestAnimationFrame(runSoftwareFrame));
+    };
+    requestAnimationFrame(runSoftwareFrame);
+  } else {
+    renderer.setAnimationLoop(tick);
+  }
 }
 
 initApp();

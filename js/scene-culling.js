@@ -199,6 +199,15 @@ function setupSceneCulling(scene, roots, shadow = null) {
     }
   }
 
+  const cityProxies = { seoul: [], sejong: [] };
+  const cityOfObject = (o) => {
+    for (let p = o; p; p = p.parent) {
+      if (p.name === 'SeoulLandmarks') return 'seoul';
+      if (p.name === 'SejongLandmarks') return 'sejong';
+    }
+    return '';
+  };
+
   // 2. Shadow stand-ins for the big static casters
   const cams = [];
   if (shadow && typeof shadow.getCamera === 'function') {
@@ -209,8 +218,8 @@ function setupSceneCulling(scene, roots, shadow = null) {
     }
   }
   if (cams.length) {
-    const instancedBySig = new Map(); // geometry signature + face side -> { geometry, material, cells: Map(key -> [matrices]) }
-    const triCells = new Map(); // face side -> Map(key -> number[] world positions)
+    const instancedBySig = new Map(); // city + geometry signature + face side -> { cityTag, geometry, material, cells: Map(key -> [matrices]) }
+    const triCells = new Map(); // city + face side -> { cityTag, side, cells: Map(key -> number[] world positions) }
     const proxyMaterials = new Map();
     const proxyMaterial = (side) => {
       let m = proxyMaterials.get(side);
@@ -259,18 +268,19 @@ function setupSceneCulling(scene, roots, shadow = null) {
 
     for (const o of sources) {
       const side = sideOf(o.material);
+      const cityTag = cityOfObject(o);
       const geo = o.userData.shadowStandIn?.isBufferGeometry ? o.userData.shadowStandIn : o.geometry;
       if (o.isInstancedMesh) {
         const pos = geo.attributes.position;
         if (!geo.boundingBox) geo.computeBoundingBox();
         const bb = geo.boundingBox;
-        const sig = [pos.count, geo.index ? geo.index.count : -1, bb.min.toArray().map((v) => v.toFixed(3)), bb.max.toArray().map((v) => v.toFixed(3)), side.side, side.shadowSide].join('|');
+        const sig = [cityTag, pos.count, geo.index ? geo.index.count : -1, bb.min.toArray().map((v) => v.toFixed(3)), bb.max.toArray().map((v) => v.toFixed(3)), side.side, side.shadowSide].join('|');
         let entry = instancedBySig.get(sig);
         if (!entry) {
           const g = new THREE.BufferGeometry();
           g.setIndex(geo.index);
           g.setAttribute('position', pos);
-          entry = { geometry: g, material: proxyMaterial(side), cells: new Map() };
+          entry = { cityTag, geometry: g, material: proxyMaterial(side), cells: new Map() };
           instancedBySig.set(sig, entry);
         }
         const e = o.instanceMatrix.array;
@@ -282,8 +292,10 @@ function setupSceneCulling(scene, roots, shadow = null) {
           list.push(..._wm.elements);
         }
       } else {
-        let bySide = triCells.get(side);
-        if (!bySide) triCells.set(side, (bySide = new Map()));
+        const triKey = `${cityTag}|${side.side}|${side.shadowSide}`;
+        let bucket = triCells.get(triKey);
+        if (!bucket) triCells.set(triKey, (bucket = { cityTag, side, cells: new Map() }));
+        const bySide = bucket.cells;
         const pos = geo.attributes.position;
         const idx = geo.index;
         const start = geo.drawRange.start;
@@ -305,13 +317,17 @@ function setupSceneCulling(scene, roots, shadow = null) {
     }
 
     const firstProxy = new Map(); // material + kind -> the stand-in that compiles their shared pipeline
-    const addProxy = (mesh) => {
+    const addProxy = (mesh, cityTag = '') => {
       mesh.name = 'ShadowProxy';
       mesh.layers.set(SHADOW_PROXY_LAYER);
       mesh.castShadow = true;
       mesh.receiveShadow = false;
       mesh.frustumCulled = true;
       mesh.userData.shadowProxy = true;
+      if (cityTag) {
+        mesh.userData.city = cityTag;
+        cityProxies[cityTag]?.push(mesh);
+      }
       const kind = mesh.material.uuid + (mesh.isInstancedMesh ? ':i' : ':m');
       if (firstProxy.has(kind)) mesh.userData.sharesPipelineWith = firstProxy.get(kind);
       else firstProxy.set(kind, mesh);
@@ -323,15 +339,15 @@ function setupSceneCulling(scene, roots, shadow = null) {
         const mesh = new THREE.InstancedMesh(entry.geometry, entry.material, n);
         mesh.instanceMatrix.array.set(list);
         mesh.computeBoundingSphere();
-        addProxy(mesh);
+        addProxy(mesh, entry.cityTag);
       }
     }
-    for (const [side, bySide] of triCells) {
-      for (const list of bySide.values()) {
+    for (const bucket of triCells.values()) {
+      for (const list of bucket.cells.values()) {
         const g = new THREE.BufferGeometry();
         g.setAttribute('position', new THREE.Float32BufferAttribute(list, 3));
         g.computeBoundingSphere();
-        addProxy(new THREE.Mesh(g, proxyMaterial(side)));
+        addProxy(new THREE.Mesh(g, proxyMaterial(bucket.side)), bucket.cityTag);
       }
     }
     for (const cam of cams) cam.layers.enable(SHADOW_PROXY_LAYER);
@@ -344,6 +360,14 @@ function setupSceneCulling(scene, roots, shadow = null) {
   }
 
   state.culled = culled;
+
+  return {
+    setActiveCity(cityId) {
+      const isSeoul = cityId === 'seoul';
+      for (const m of cityProxies.seoul) m.visible = isSeoul;
+      for (const m of cityProxies.sejong) m.visible = !isSeoul;
+    }
+  };
 }
 
 const state = { culled: [] };

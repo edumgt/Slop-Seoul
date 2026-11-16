@@ -225,7 +225,10 @@ test('Sejong landmarks stay clear of roads & teleports, keep elevated skybridges
     createCivicArcGeometry,
     buildSejongLandmarks
   } = loadModule(read('js/sejong-landmarks.js'), {
-    imports: { 'three/webgpu': stubThree },
+    imports: {
+      'three/webgpu': stubThree,
+      './sejong-lighting.js': { createSejongLightingSystem: () => null }
+    },
     globals: { document: stubDoc }
   });
 
@@ -293,4 +296,52 @@ test('Sejong landmarks stay clear of roads & teleports, keep elevated skybridges
     }
   }
 });
+
+test('Strict Sejong vs Seoul separation prevents cross-city road/landmark label leakage', () => {
+  const seoulForbiddenInSejong = ['테헤란', '강남', '역삼', '선릉', '삼성', '코엑스', '서초', '한강', '올림픽', '봉은사', '학동'];
+  const sejongForbiddenInSeoul = ['세종', '정부청사', '다솜', '한누리', '도움', '국무총리', '국무조정실', '갈매', '보듬', '금강', '국립도서관'];
+
+  for (const tp of getCityTeleports('sejong')) {
+    const label = getLocationLabel(tp.x, tp.z, 'sejong');
+    for (const bad of seoulForbiddenInSejong) {
+      assert.equal(label.includes(bad), false, `Sejong teleport "${tp.id}" leaked Seoul term "${bad}" in "${label}"`);
+    }
+  }
+  const midtownAtOriginInSejong = getLocationLabel(0, 0, 'sejong');
+  for (const bad of seoulForbiddenInSejong) {
+    assert.equal(midtownAtOriginInSejong.includes(bad), false, `Sejong road at (0,0) leaked Seoul term "${bad}" in "${midtownAtOriginInSejong}"`);
+  }
+
+  for (const tp of getCityTeleports('seoul')) {
+    const label = getLocationLabel(tp.x, tp.z, 'seoul');
+    for (const bad of sejongForbiddenInSeoul) {
+      assert.equal(label.includes(bad), false, `Seoul teleport "${tp.id}" leaked Sejong term "${bad}" in "${label}"`);
+    }
+  }
+  const sejongComplexCoordsInSeoul = getLocationLabel(159, -1204, 'seoul');
+  for (const bad of sejongForbiddenInSeoul) {
+    assert.equal(sejongComplexCoordsInSeoul.includes(bad), false, `Seoul view at (159,-1204) leaked Sejong term "${bad}" in "${sejongComplexCoordsInSeoul}"`);
+  }
+});
+
+test('landmarks.js and nyc-map.js separate SeoulLandmarks vs SejongLandmarks and map search/minimap per city', () => {
+  const landmarksSrc = read('js/landmarks.js');
+  assert.match(landmarksSrc, /seoulGroup\.name = ['"]SeoulLandmarks['"]/);
+  assert.match(landmarksSrc, /sejongGroup\.name = ['"]SejongLandmarks['"]/);
+  assert.match(landmarksSrc, /batchStaticGroupMeshes\(seoulGroup/);
+  assert.match(landmarksSrc, /batchStaticGroupMeshes\(sejongGroup/);
+  assert.match(landmarksSrc, /function setActiveCity\(cityId\)/);
+  assert.match(landmarksSrc, /return \{ group, seoulGroup, sejongGroup, colliders, sejongLighting, setActiveCity \}/);
+
+  const mapSrc = read('js/nyc-map.js');
+  assert.match(mapSrc, /textByCity:\s*\{\s*sejong:\s*sejongText,\s*seoul:\s*seoulText\s*\}/);
+  assert.match(mapSrc, /if \(!c \|\| c\.city !== this\.activeCity/);
+  assert.match(mapSrc, /if \(lm\.city && lm\.city !== this\.activeCity\) continue;/);
+  assert.equal(
+    /const cityLandmarks[\s\S]*?\|\|\s*NYC_LANDMARKS\.find/.test(mapSrc),
+    false,
+    'Map search must not fall back to landmarks from the other city'
+  );
+});
+
 

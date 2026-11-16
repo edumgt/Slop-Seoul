@@ -98,14 +98,18 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
 
   // Limit only bloom's peak radiance, scaling RGB together to retain neon and lamp colors.
   // The original HDR image keeps its full range for the tone mapper's highlight shoulder.
-  const peak = max(max(exposed.r, exposed.g), exposed.b);
-  const bloomInput = vec4(exposed.mul(float(8.0).div(max(peak, 8.0))), 1.0);
-  const bloomPass = bloom(bloomInput, 0.24, 0.40, 1.20);
-  bloomPass.smoothWidth.value = 0.30;
-  bloomPass.setResolutionScale(0.35);
+  let bloomPass = null;
+  if (!options?.skipBloom) {
+    const peak = max(max(exposed.r, exposed.g), exposed.b);
+    const bloomInput = vec4(exposed.mul(float(8.0).div(max(peak, 8.0))), 1.0);
+    bloomPass = bloom(bloomInput, 0.24, 0.40, 1.20);
+    bloomPass.smoothWidth.value = 0.30;
+    bloomPass.setResolutionScale(0.35);
+  }
+  const bloomRgb = bloomPass ? bloomPass.rgb : vec3(0);
 
   const outputNode = Fn(() => {
-    const color = exposed.add(bloomPass.rgb).toVar();
+    const color = exposed.add(bloomRgb).toVar();
 
     // 1. Screen-space surface rain ripples, subtle depth fog shift & lightning flash scatter
     const fogAmount = float(0.0).toVar();
@@ -129,7 +133,7 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
       const rippleRefracted = max(rippleSample.rgb.add(reflections.rgb), vec3(0))
         .mul(exposure)
         .mul(balance)
-        .add(bloomPass.rgb);
+        .add(bloomRgb);
       const rippleBlend = clamp(rippleGlint.mul(0.55), 0.0, 0.65);
       color.assign(mix(color, rippleRefracted, rippleBlend));
 
@@ -154,7 +158,7 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
     const refractedExposed = max(sceneRefracted.rgb.add(reflections.rgb), vec3(0))
       .mul(exposure)
       .mul(balance)
-      .add(bloomPass.rgb)
+      .add(bloomRgb)
       .toVar();
     if (screenWeatherEffect) {
       refractedExposed.assign(mix(refractedExposed, stormFogColor, fogAmount));
@@ -209,8 +213,10 @@ function createPostProcessing(renderer, sceneColor, reflections, options = {}) {
     contrast.value = look.contrast;
     saturation.value = look.saturation;
     balance.value.set(...look.balance);
-    bloomPass.strength.value = look.bloom;
-    bloomPass.threshold.value = look.threshold;
+    if (bloomPass) {
+      bloomPass.strength.value = look.bloom;
+      bloomPass.threshold.value = look.threshold;
+    }
   }
 
   applyPreset('golden');

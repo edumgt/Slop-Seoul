@@ -9,6 +9,7 @@ import {
 } from './tsl-materials.js';
 import { batchStaticGroupMeshes } from './city-grid.js';
 import { buildSejongLandmarks } from './sejong-landmarks.js';
+import { createSejongLightingSystem } from './sejong-lighting.js';
 
 let bryantParkLawn;
 
@@ -17,6 +18,12 @@ let bryantParkLawn;
 function buildLandmarks(scene) {
   const group = new THREE.Group();
   group.name = 'ManhattanLandmarks';
+  const seoulGroup = new THREE.Group();
+  seoulGroup.name = 'SeoulLandmarks';
+  const sejongGroup = new THREE.Group();
+  sejongGroup.name = 'SejongLandmarks';
+  group.add(seoulGroup);
+  group.add(sejongGroup);
   const colliders = [];
 
   const limestoneTrimMat = new THREE.MeshStandardNodeMaterial({
@@ -300,7 +307,7 @@ function buildLandmarks(scene) {
     beacon.position.y = 325.2;
     esb.add(beacon);
 
-    group.add(esb);
+    seoulGroup.add(esb);
     colliders.push({
       minX: b.cx - 34,
       maxX: b.cx + 34,
@@ -389,7 +396,7 @@ function buildLandmarks(scene) {
     cBeacon.position.y = curY + 37.5;
     chrysler.add(cBeacon);
 
-    group.add(chrysler);
+    seoulGroup.add(chrysler);
     colliders.push({
       minX: b.cx - 33,
       maxX: b.cx + 17,
@@ -446,7 +453,7 @@ function buildLandmarks(scene) {
     ovSpire.position.y = 260 + 15;
     vanderbilt.add(ovSpire);
 
-    group.add(vanderbilt);
+    seoulGroup.add(vanderbilt);
     colliders.push({
       minX: b.cx - 10,
       maxX: b.cx + 33,
@@ -570,7 +577,7 @@ function buildLandmarks(scene) {
     signBand.position.set(0, 191, -12);
     gctGroup.add(signBand);
 
-    group.add(gctGroup);
+    seoulGroup.add(gctGroup);
     colliders.push({
       minX: b.cx - 34,
       maxX: b.cx + 34,
@@ -684,7 +691,7 @@ function buildLandmarks(scene) {
     carouselRoof.position.set(-12, 4.6, 21);
     bpGroup.add(carouselRoof);
 
-    group.add(bpGroup);
+    seoulGroup.add(bpGroup);
     colliders.push({
       minX: b.cx + 6,
       maxX: b.cx + 35,
@@ -749,7 +756,7 @@ function buildLandmarks(scene) {
     tsGroup.add(nyeBall);
 
     // (the towers around the bowtie are the procedural blocks' Broadway flush walls & billboards now)
-    group.add(tsGroup);
+    seoulGroup.add(tsGroup);
     colliders.push({ minX: b.cx + otsX - 9, maxX: b.cx + otsX + 9, minZ: b.cz + 1, maxZ: b.cz + 27, maxY: otsH });
     fitToSite([tsGroup], site('One Times Square'), c0, { height: 120 });
   }
@@ -793,7 +800,7 @@ function buildLandmarks(scene) {
     prometheus.rotation.y = Math.PI * 0.5;
     rockGroup.add(prometheus);
 
-    group.add(rockGroup);
+    seoulGroup.add(rockGroup);
     colliders.push({
       minX: b.cx - 32,
       maxX: b.cx + 4,
@@ -846,7 +853,7 @@ function buildLandmarks(scene) {
     citiCrown.position.set(0, 175, 0);
     citiGroup.add(citiCrown);
 
-    group.add(citiGroup);
+    seoulGroup.add(citiGroup);
     colliders.push({
       minX: b.cx - 21,
       maxX: b.cx + 21,
@@ -902,7 +909,7 @@ function buildLandmarks(scene) {
     const corniceMesh = new THREE.Mesh(corniceGeo, limestoneTrimMat);
     flatironGroup.add(corniceMesh);
 
-    group.add(flatironGroup);
+    seoulGroup.add(flatironGroup);
     colliders.push({ minX: b.cx + 15, maxX: b.cx + 39, minZ: b.cz - 30, maxZ: b.cz + 20, maxY: 90 });
     fitToSite([flatironGroup], site('Flatiron Building'), c0, { height: 87 });
   }
@@ -937,7 +944,7 @@ function buildLandmarks(scene) {
       seagramGroup.add(pool);
     }
 
-    group.add(seagramGroup);
+    seoulGroup.add(seagramGroup);
     colliders.push({
       minX: b.cx - 13,
       maxX: b.cx + 34,
@@ -1023,7 +1030,7 @@ function buildLandmarks(scene) {
     beacon.position.y = 364;
     owtcGroup.add(beacon);
 
-    group.add(owtcGroup);
+    seoulGroup.add(owtcGroup);
     colliders.push({
       minX: -285,
       maxX: -235,
@@ -1034,13 +1041,17 @@ function buildLandmarks(scene) {
     fitToSite([owtcGroup], site('One World Trade Center'), c0, { height: 541, horizontal: 1.27 }); // a 61 m square base
   }
 
+  for (const col of colliders) {
+    if (!col.city) col.city = 'seoul';
+  }
+
   // Box-shaped facade parts (unrotated) become box-local facade boxes: every wall laid out in whole window bays between
   // solid masonry corners, like the procedural blocks, so no window is cut by a corner. Rotated & non-box parts (MetLife
   // wings, Flatiron prism, One WTC antiprism) keep the world-space window grid.
-  group.updateMatrixWorld(true);
+  seoulGroup.updateMatrixWorld(true);
   const facadeBoxes = new Map();
   const boxParts = [];
-  group.traverse((obj) => {
+  seoulGroup.traverse((obj) => {
     if (obj.isMesh && boxLocalTwins.has(obj.material) && obj.geometry.type === 'BoxGeometry') boxParts.push(obj);
   });
   const partPos = new THREE.Vector3();
@@ -1059,25 +1070,38 @@ function buildLandmarks(scene) {
     const inst = createFacadeBoxes(mat, boxes);
     inst.castShadow = true;
     inst.receiveShadow = true;
-    group.add(inst);
+    seoulGroup.add(inst);
   }
+  batchStaticGroupMeshes(seoulGroup, new Set([stainlessSteelMat]));
 
   // =========================================================================
   // 12. SEJONG CITY GOVERNMENT COMPLEX ARCHITECTURE (sejong-landmarks.js)
   // =========================================================================
-  const sejongExclude = buildSejongLandmarks(group, colliders, {
+  const sejongColliderStart = colliders.length;
+  const sejongLighting = createSejongLightingSystem();
+  const sejongExclude = buildSejongLandmarks(sejongGroup, colliders, {
     limestoneTrimMat,
     stainlessSteelMat,
     darkBronzeFrameMat,
     warmFloodMat,
     landmarkSilverCurtainMat,
-    landmarkBronzeCurtainMat
+    landmarkBronzeCurtainMat,
+    sejongLighting
   });
+  for (let i = sejongColliderStart; i < colliders.length; i++) {
+    colliders[i].city = 'sejong';
+  }
 
-  batchStaticGroupMeshes(group, new Set([stainlessSteelMat, ...sejongExclude]));
+  batchStaticGroupMeshes(sejongGroup, new Set([stainlessSteelMat, ...sejongExclude]));
+
+  function setActiveCity(cityId) {
+    const isSeoul = cityId === 'seoul';
+    seoulGroup.visible = isSeoul;
+    sejongGroup.visible = !isSeoul;
+  }
 
   scene.add(group);
-  return { group, colliders };
+  return { group, seoulGroup, sejongGroup, colliders, sejongLighting, setActiveCity };
 }
 
 export { buildLandmarks, bryantParkLawn };

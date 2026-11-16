@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { createSejongLightingSystem } from './sejong-lighting.js';
 
 // Architectural footprints & parameters for Sejong Special Self-Governing City's distinctive
 // government & civic landmarks (tested against road clearance in tests/sejong-roads.test.cjs).
@@ -115,8 +116,17 @@ function buildSejongLandmarks(group, colliders, mats) {
     darkBronzeFrameMat,
     warmFloodMat,
     landmarkSilverCurtainMat,
-    landmarkBronzeCurtainMat
+    landmarkBronzeCurtainMat,
+    sejongLighting = createSejongLightingSystem()
   } = mats;
+
+  const {
+    sejongSilverCurtainMat = landmarkSilverCurtainMat,
+    sejongBronzeCurtainMat = landmarkBronzeCurtainMat,
+    sejongSkybridgeMat = landmarkSilverCurtainMat,
+    sejongLobbyGlowMat = warmFloodMat,
+    sejongPergolaGlowMat = warmFloodMat
+  } = sejongLighting?.materials || {};
 
   // Distinct Sejong architectural PBR material palette (high roughness contrast >= 0.25 between adjacent elements)
   const ceramicWhiteMat = new THREE.MeshStandardNodeMaterial({
@@ -156,12 +166,6 @@ function buildSejongLandmarks(group, colliders, mats) {
     color: 0x1b6588,
     roughness: 0.08,
     metalness: 0.75
-  });
-  const warmGardenGlowMat = new THREE.MeshStandardNodeMaterial({
-    color: 0xfff0cc,
-    emissive: 0xffc66e,
-    emissiveIntensity: 1.25,
-    roughness: 0.3
   });
 
   const signComplexMat = new THREE.MeshBasicNodeMaterial({
@@ -214,7 +218,7 @@ function buildSejongLandmarks(group, colliders, mats) {
       wing.add(plinth);
 
       // Open 1st-floor recessed lobby + perimeter piloti colonnade (hallmark of Sejong buildings)
-      const lobbyCore = new THREE.Mesh(new THREE.BoxGeometry(cfg.w - 14, 4.6, cfg.d - 14), warmFloodMat);
+      const lobbyCore = new THREE.Mesh(new THREE.BoxGeometry(cfg.w - 14, 4.6, cfg.d - 14), sejongLobbyGlowMat);
       lobbyCore.position.y = 3.3;
       wing.add(lobbyCore);
 
@@ -233,7 +237,7 @@ function buildSejongLandmarks(group, colliders, mats) {
 
       // Main 5-story horizontal office volume (set back at upper terrace level for stepped garden silhouette)
       const bodyH = cfg.h - 5.6;
-      const mainBody = new THREE.Mesh(new THREE.BoxGeometry(cfg.w - 4, bodyH, cfg.d - 6), landmarkSilverCurtainMat);
+      const mainBody = new THREE.Mesh(new THREE.BoxGeometry(cfg.w - 4, bodyH, cfg.d - 6), sejongSilverCurtainMat);
       mainBody.position.y = 5.6 + bodyH * 0.5;
       mainBody.castShadow = true;
       mainBody.receiveShadow = true;
@@ -241,7 +245,7 @@ function buildSejongLandmarks(group, colliders, mats) {
 
       // Stepped upper wing inset (asymmetric Sejong terrace profile)
       const upperOffset = (idx % 2 === 0 ? -1 : 1) * 8;
-      const upperWing = new THREE.Mesh(new THREE.BoxGeometry(cfg.w * 0.58, 4.2, cfg.d - 14), landmarkBronzeCurtainMat);
+      const upperWing = new THREE.Mesh(new THREE.BoxGeometry(cfg.w * 0.58, 4.2, cfg.d - 14), sejongBronzeCurtainMat);
       upperWing.position.set(upperOffset, cfg.h + 2.1, 0);
       upperWing.castShadow = true;
       wing.add(upperWing);
@@ -283,7 +287,7 @@ function buildSejongLandmarks(group, colliders, mats) {
         rib.position.set(rx, cfg.h + 2.4, 0);
         wing.add(rib);
 
-        const lightStrip = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.22, 8.6), warmGardenGlowMat);
+        const lightStrip = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.22, 8.6), sejongPergolaGlowMat);
         lightStrip.position.set(rx, cfg.h + 3.95, 0);
         wing.add(lightStrip);
       }
@@ -332,7 +336,7 @@ function buildSejongLandmarks(group, colliders, mats) {
         seg.add(girder);
 
         // Glazed enclosed skywalk tunnel
-        const tunnel = new THREE.Mesh(new THREE.BoxGeometry(br.width - 1.2, 3.2, segLen), landmarkSilverCurtainMat);
+        const tunnel = new THREE.Mesh(new THREE.BoxGeometry(br.width - 1.2, 3.2, segLen), sejongSkybridgeMat);
         tunnel.position.y = 0.65;
         tunnel.castShadow = true;
         seg.add(tunnel);
@@ -348,7 +352,7 @@ function buildSejongLandmarks(group, colliders, mats) {
           rail.position.set(side * (br.width * 0.48), 3.1, 0);
           seg.add(rail);
         }
-        const underGlow = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.18, segLen), warmGardenGlowMat);
+        const underGlow = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.18, segLen), sejongPergolaGlowMat);
         underGlow.position.y = -2.35;
         seg.add(underGlow);
 
@@ -380,13 +384,13 @@ function buildSejongLandmarks(group, colliders, mats) {
     libGroup.add(plinthUpper);
 
     // Recessed radiant ground lobby + curved glass core
-    const libCore = new THREE.Mesh(new THREE.BoxGeometry(40, 12.2, 24), landmarkSilverCurtainMat);
+    const libCore = new THREE.Mesh(new THREE.BoxGeometry(40, 12.2, 24), sejongSilverCurtainMat);
     libCore.position.y = 7.8;
     libCore.castShadow = true;
     libCore.receiveShadow = true;
     libGroup.add(libCore);
 
-    const libAtriumGlow = new THREE.Mesh(new THREE.BoxGeometry(34, 5.4, 24.4), warmFloodMat);
+    const libAtriumGlow = new THREE.Mesh(new THREE.BoxGeometry(34, 5.4, 24.4), sejongLobbyGlowMat);
     libAtriumGlow.position.y = 4.6;
     libGroup.add(libAtriumGlow);
 
@@ -439,7 +443,7 @@ function buildSejongLandmarks(group, colliders, mats) {
     archBase.receiveShadow = true;
     archGroup.add(archBase);
 
-    const archUplight = new THREE.Mesh(new THREE.BoxGeometry(20, 0.4, 20), warmGardenGlowMat);
+    const archUplight = new THREE.Mesh(new THREE.BoxGeometry(20, 0.4, 20), sejongPergolaGlowMat);
     archUplight.position.y = 2.0;
     archGroup.add(archUplight);
 
@@ -517,7 +521,7 @@ function buildSejongLandmarks(group, colliders, mats) {
     pmoGroup.add(pmoPlaza);
 
     // 3-step terraced Sejong central ministry massing with green terrace decks
-    const step1 = new THREE.Mesh(new THREE.BoxGeometry(118, 12, 42), landmarkSilverCurtainMat);
+    const step1 = new THREE.Mesh(new THREE.BoxGeometry(118, 12, 42), sejongSilverCurtainMat);
     step1.position.set(-6, 7.2, 0);
     step1.castShadow = true;
     step1.receiveShadow = true;
@@ -527,7 +531,7 @@ function buildSejongLandmarks(group, colliders, mats) {
     terrace1.position.set(-6, 13.55, 0);
     pmoGroup.add(terrace1);
 
-    const step2 = new THREE.Mesh(new THREE.BoxGeometry(76, 10, 32), landmarkBronzeCurtainMat);
+    const step2 = new THREE.Mesh(new THREE.BoxGeometry(76, 10, 32), sejongBronzeCurtainMat);
     step2.position.set(-14, 18.2, 0);
     step2.castShadow = true;
     pmoGroup.add(step2);
@@ -591,7 +595,7 @@ function buildSejongLandmarks(group, colliders, mats) {
 
     // Sweeping Circular Council & Main Hall C-Ring ("하늘은 둥글다" motif)
     const ringGeo = createCivicArcGeometry(30, 52, Math.PI * 0.12, Math.PI * 1.48, 21);
-    const ringMesh = new THREE.Mesh(ringGeo, landmarkSilverCurtainMat);
+    const ringMesh = new THREE.Mesh(ringGeo, sejongSilverCurtainMat);
     ringMesh.position.y = 1.4;
     ringMesh.castShadow = true;
     ringMesh.receiveShadow = true;
@@ -610,7 +614,7 @@ function buildSejongLandmarks(group, colliders, mats) {
     chGroup.add(roofGardenRingMesh);
 
     // Executive tower wing framing the northwest entrance toward tp_sejong_cityhall (469, 4799)
-    const towerWing = new THREE.Mesh(new THREE.BoxGeometry(44, 24, 24), landmarkBronzeCurtainMat);
+    const towerWing = new THREE.Mesh(new THREE.BoxGeometry(44, 24, 24), sejongBronzeCurtainMat);
     towerWing.position.set(-22, 13.4, -36);
     towerWing.castShadow = true;
     towerWing.receiveShadow = true;

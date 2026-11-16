@@ -83,13 +83,15 @@ const DEFAULT_CITY_VIEWS = {
     id: 'sejong',
     name: '세종특별자치시',
     placeholder: '한누리대로, 다솜로, 정부세종청사, 국립세종도서관 검색…',
-    center: { x: -40, z: -1850, zoom: 0.24 }
+    center: { x: -40, z: -1850, zoom: 0.24 },
+    mapBounds: { minX: -1250, maxX: 1150, minZ: -5550, maxZ: 5400 }
   },
   seoul: {
     id: 'seoul',
     name: '서울특별시',
     placeholder: '테헤란로, 강남대로, 포스코센터, 코엑스 검색…',
-    center: { x: 80, z: 120, zoom: 0.28 }
+    center: { x: 80, z: 120, zoom: 0.28 },
+    mapBounds: { minX: -1150, maxX: 1250, minZ: -1450, maxZ: 5600 }
   }
 };
 
@@ -136,8 +138,8 @@ const AREA_LABELS = [
   ['올림픽공원', 795, 7685, 2, 'seoul']
 ];
 
-// Shorter map names for a few real street names
-const LABEL_ALIAS = { 'Franklin D Roosevelt Dr': 'FDR Drive', 'Battery Park Underpass': 'Battery Underpass' };
+// Optional short map aliases (city-specific names already come from city-config.js)
+const LABEL_ALIAS = {};
 
 // ---------------------------------------------------------------------------------------------------------------------
 // World-space vector layers: built once into Path2D objects (world metres) and drawn through a canvas transform
@@ -330,6 +332,8 @@ function footprintLayers(all) {
 // upwards)
 const ROAD_LABELS = [];
 for (const r of ROADS) {
+  const sejongText = LABEL_ALIAS[r.sejongName || r.name] || r.sejongName || r.name;
+  const seoulText = LABEL_ALIAS[r.seoulName || r.name] || r.seoulName || r.name;
   const text = LABEL_ALIAS[r.name] || r.name;
   if (!text || /^Unnamed/.test(text)) continue;
   const anchors = [];
@@ -363,7 +367,9 @@ for (const r of ROADS) {
   if (!anchors.length) continue;
   ROAD_LABELS.push({
     text,
+    textByCity: { sejong: sejongText, seoul: seoulText },
     lower: text.toLowerCase(),
+    lowerByCity: { sejong: sejongText.toLowerCase(), seoul: seoulText.toLowerCase() },
     raw: r.name.toLowerCase(),
     road: r,
     major: r.highway || r.w >= 15,
@@ -372,7 +378,10 @@ for (const r of ROADS) {
     ...boundsOf(r.pts)
   });
 }
-const ROAD_NAME_COUNT = new Set(ROAD_LABELS.map((l) => l.text)).size;
+const ROAD_NAME_COUNT_BY_CITY = {
+  sejong: new Set(ROAD_LABELS.map((l) => l.textByCity.sejong)).size,
+  seoul: new Set(ROAD_LABELS.map((l) => l.textByCity.seoul)).size
+};
 
 /** A map viewport: centre (cx, cz) in world metres, s pixels per metre, w x h CSS pixels on a canvas of pixel ratio dpr */
 class MapView {
@@ -479,8 +488,9 @@ class NYCMapSystem {
     this.miniStreetText = '';
     this.miniScale = RADAR_SCALE;
     this.miniCache = null; // { canvas, cx, cz, s, version }: the radar's ground layers, twice the radar's size
-    const elCounts = document.getElementById('fullmap-counts');
-    if (elCounts) elCounts.textContent = `${ROAD_NAME_COUNT}개 도로 · ${BLOCKS.length.toLocaleString('en-US')} 블록`;
+    this.elCounts = document.getElementById('fullmap-counts');
+    this.elMapTitle = document.getElementById('fullmap-city-title');
+    this.elViewAllBtn = document.getElementById('map-view-all');
 
     // The map is drawn grid north up; the compass needle points to true north, 29° to its left
     const needle = document.getElementById('map-compass-needle');
@@ -536,8 +546,27 @@ class NYCMapSystem {
       btn.classList.toggle('active', btn.getAttribute('data-map-city') === this.activeCity);
     });
     if (this.elSearchInput) this.elSearchInput.placeholder = cfg.placeholder;
+    if (this.elMapTitle) this.elMapTitle.textContent = `${cfg.name} 스트리트 아틀라스`;
+    if (this.elCounts) {
+      const roadCount = ROAD_NAME_COUNT_BY_CITY[this.activeCity] || 0;
+      this.elCounts.textContent = `${roadCount}개 도로 · ${BLOCKS.length.toLocaleString('en-US')} 블록`;
+    }
+    if (this.elViewAllBtn) this.elViewAllBtn.title = `${cfg.name} 전역 보기`;
+    this.miniCache = null;
+    this.miniStreetText = '';
     this.fullStaticKey = '';
+    this.playerInfoText = '';
+
+    const defaultLmId = this.activeCity === 'seoul' ? 'esb' : 'sejong_complex';
+    const defaultLm = NYC_LANDMARKS.find((l) => l.id === defaultLmId && (!l.city || l.city === this.activeCity));
+    if (defaultLm) {
+      this.waypoint = { x: defaultLm.x, z: defaultLm.z, name: defaultLm.name };
+    }
+
     if (focusMap) {
+      this.searchHighlight = '';
+      this.searchPath = null;
+      if (this.elSearchInput) this.elSearchInput.value = '';
       this.viewCenterX = cfg.center.x;
       this.viewCenterZ = cfg.center.z;
       this.viewZoom = cfg.center.zoom;
@@ -590,8 +619,8 @@ class NYCMapSystem {
     }
     if (fullIslandBtn) {
       fullIslandBtn.addEventListener('click', () => {
-        // Fits all of Manhattan, from the Harlem River to the Battery
-        const b = ISLAND_BOUNDS;
+        // Fits the active city's distinct region bounds cleanly
+        const b = DEFAULT_CITY_VIEWS[this.activeCity]?.mapBounds || ISLAND_BOUNDS;
         const { w, h } = this.fullSize();
         this.viewCenterX = (b.minX + b.maxX) * 0.5;
         this.viewCenterZ = (b.minZ + b.maxZ) * 0.5;
@@ -649,7 +678,7 @@ class NYCMapSystem {
         if (mx >= 0 && mx <= rect.width && my >= 0 && my <= rect.height) {
           const wPos = this.screenToWorld(mx, my, rect.width, rect.height);
           if (this.elHoverInfo) {
-            this.elHoverInfo.textContent = `${getLocationLabel(wPos.x, wPos.z)} · Click to teleport here`;
+            this.elHoverInfo.textContent = `${getLocationLabel(wPos.x, wPos.z, this.activeCity)} · Click to teleport here`;
           }
         }
       });
@@ -667,7 +696,7 @@ class NYCMapSystem {
             this.waypoint = {
               x: wPos.x,
               z: wPos.z,
-              name: getLocationLabel(wPos.x, wPos.z)
+              name: getLocationLabel(wPos.x, wPos.z, this.activeCity)
             };
             if (this.onTeleport) {
               this.onTeleport(wPos.x, wPos.z);
@@ -711,10 +740,12 @@ class NYCMapSystem {
     this.searchHighlight = q;
     this.searchPath = null;
     if (q.length > 0) {
-      const cityLandmarks = NYC_LANDMARKS.filter((l) => !l.city || l.city === this.activeCity);
-      const lmMatch = cityLandmarks.find((l) => l.name.toLowerCase().includes(q) || l.short.toLowerCase().includes(q))
-        || NYC_LANDMARKS.find((l) => l.name.toLowerCase().includes(q) || l.short.toLowerCase().includes(q));
-      const roads = ROAD_LABELS.filter((l) => l.lower.includes(q) || l.raw.includes(q));
+      const cityLandmarks = NYC_LANDMARKS.filter((l) => l.city === this.activeCity);
+      const lmMatch = cityLandmarks.find((l) => l.name.toLowerCase().includes(q) || l.short.toLowerCase().includes(q));
+      const roads = ROAD_LABELS.filter((l) => {
+        const lower = (l.lowerByCity && l.lowerByCity[this.activeCity]) || l.lower;
+        return lower.includes(q) || l.raw.includes(q);
+      });
       if (roads.length) {
         this.searchPath = new Path2D();
         const b = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
@@ -954,14 +985,16 @@ class NYCMapSystem {
     const cands = [];
     for (const l of ROAD_LABELS) {
       if (l.maxX < minX || l.minX > maxX || l.maxZ < minZ || l.minZ > maxZ) continue;
-      const hit = q.length > 0 && (l.lower.includes(q) || l.raw.includes(q));
+      const text = (l.textByCity && l.textByCity[this.activeCity]) || l.text;
+      const lower = (l.lowerByCity && l.lowerByCity[this.activeCity]) || l.lower;
+      const hit = q.length > 0 && (lower.includes(q) || l.raw.includes(q));
       if (majorOnly && !l.major && !hit) continue;
-      const width = this.textWidth(ctx, l.text);
+      const width = this.textWidth(ctx, text);
       const need = (width + 14) / s;
       for (const a of l.anchors) {
         if (a.len < need || a.x < minX || a.x > maxX || a.z < minZ || a.z > maxZ) continue;
         const d = Math.hypot(a.x - v.cx, a.z - v.cz) * s;
-        cands.push({ l, a, width, hit, score: (hit ? 1e6 : 0) + (l.highway ? 3000 : 0) + (l.major ? 2000 : 0) + Math.min(a.len * s, 400) - d * 0.5 });
+        cands.push({ l, text, a, width, hit, score: (hit ? 1e6 : 0) + (l.highway ? 3000 : 0) + (l.major ? 2000 : 0) + Math.min(a.len * s, 400) - d * 0.5 });
       }
     }
     cands.sort((a, b) => b.score - a.score);
@@ -977,7 +1010,7 @@ class NYCMapSystem {
       if (n >= maxLabels) break;
       const X = v.toX(c.a.x);
       const Y = v.toY(c.a.z);
-      const same = byName.get(c.l.text);
+      const same = byName.get(c.text);
       if (same && same.some(([x, y]) => Math.hypot(x - X, y - Y) < sameNameGap)) continue;
       const hw = c.width * 0.5 + 3;
       const hh = fontPx * 0.5 + 2;
@@ -989,13 +1022,13 @@ class NYCMapSystem {
       if (overlaps(placed, box)) continue;
       placed.push(box);
       if (same) same.push([X, Y]);
-      else byName.set(c.l.text, [[X, Y]]);
+      else byName.set(c.text, [[X, Y]]);
       ctx.save();
       ctx.translate(X, Y);
       ctx.rotate(c.a.ang);
       ctx.fillStyle = c.hit ? MAP.search : c.l.highway ? '#e3a857' : c.l.major ? '#e8ebf0' : '#9ba5b3';
-      ctx.strokeText(c.l.text, 0, 0);
-      ctx.fillText(c.l.text, 0, 0);
+      ctx.strokeText(c.text, 0, 0);
+      ctx.fillText(c.text, 0, 0);
       ctx.restore();
       n++;
     }
@@ -1040,7 +1073,7 @@ class NYCMapSystem {
     const scale = this.miniScale;
 
     if (this.elMiniStreet) {
-      const label = getLocationLabel(px, pz);
+      const label = getLocationLabel(px, pz, this.activeCity);
       if (label !== this.miniStreetText) {
         this.miniStreetText = label;
         this.elMiniStreet.textContent = label;
@@ -1048,11 +1081,11 @@ class NYCMapSystem {
     }
 
     // Ground layers & street names come from a cached render twice the radar's size, redrawn when the player nears its
-    // edge or the zoom drifts (or the buildings arrive)
+    // edge, the active city changes, or the zoom drifts (or the buildings arrive)
     const fp = footprintLayers(this.allBlocks);
     const version = fp ? fp.version : 0;
     let c = this.miniCache;
-    if (!c || c.version !== version || Math.abs(scale / c.s - 1) > 0.12 ||
+    if (!c || c.city !== this.activeCity || c.version !== version || Math.abs(scale / c.s - 1) > 0.12 ||
       Math.abs(px - c.cx) > w / c.s - w / (2 * scale) - 8 / scale ||
       Math.abs(pz - c.cz) > h / c.s - h / (2 * scale) - 8 / scale) {
       if (!c) {
@@ -1065,6 +1098,7 @@ class NYCMapSystem {
       c.cz = pz;
       c.s = scale;
       c.version = version;
+      c.city = this.activeCity;
       c.ctx.setTransform(1, 0, 0, 1, 0, 0);
       c.ctx.fillStyle = MAP.water;
       c.ctx.fillRect(0, 0, bw * 2, bh * 2);
@@ -1095,8 +1129,9 @@ class NYCMapSystem {
       drawWaypoint(ctx, wx, wy, 4.5);
     }
 
-    // Landmark blips
+    // Landmark blips (strictly scoped to active city)
     for (const lm of NYC_LANDMARKS) {
+      if (lm.city && lm.city !== this.activeCity) continue;
       const lx = toX(lm.x);
       const ly = toY(lm.z);
       if (Math.abs(lx) < w * 0.48 && Math.abs(ly) < h * 0.48) {

@@ -106,11 +106,257 @@ const PRETTY = {
   'WATER ST': '보람동 관공서길 (Boram Civic Rd)',
   'SOUTH ST': '금강 한두리수변로 (Geumgang Riverside)'
 };
-function prettyName(n) {
-  if (PRETTY[n]) return PRETTY[n];
+
+const PRETTY_SEJONG = {
+  'W  END AVE': '고운한들로 (Goun-handeul-ro)',
+  '11 AVE': '아름서로 (Areum-seoro)',
+  'AMSTERDAM AVE': '달빛로 (종촌동·아름동)',
+  '10 AVE': '새롬중앙로 (Saerom-jungangro)',
+  'COLUMBUS AVE': '가름로 (어진동)',
+  '9 AVE': '나성북로 (Naseong-bukro)',
+  'MANHATTAN AVE': '도담진로 (Dodamjin-ro)',
+  'FREDERICK DOUGLASS BLVD': '누리로 (세종 관공서길)',
+  'CENTRAL PARK W': '호수공원서로 (Sejong Lake West)',
+  '8 AVE': '한누리서로 (Hannuri West)',
+  'ADAM CLAYTON POWELL JR BLVD': '보듬로 (도담 행정타운)',
+  '7 AVE': '나성로 (나성동 중심축)',
+  'LENOX AVE': '마음로 (아름동·고운동)',
+  'MALCOLM X BLVD': '다솜로 (국무총리실)',
+  'AVE OF THE AMERICAS': '어울림로 (호수공원·청사축)',
+  '5 AVE': '절재로 (정부세종청사 서축)',
+  'MADISON AVE': '다솜로 (정부세종청사 중심축)',
+  'PARK AVE': '도움6로 (행안부·국토부)',
+  'PARK AVE S': '도움6남로 (Doum 6-namro)',
+  'LEXINGTON AVE': '도움8로 (과기정통부·문체부)',
+  '3 AVE': '갈매로 (어진동·세종교육청)',
+  '2 AVE': '호수공원동로 (Sejong Lake East)',
+  '1 AVE': '금강수변대로 (Geumgang Riverside)',
+  'YORK AVE': '집현중앙로 (Jiphyeon-jungangro)',
+  'SUTTON PL': '합강수변길 (Hapgang Riverside)',
+  'PLEASANT AVE': '미호천로 (Mihocheon-ro)',
+  'AVE A': '대평로 (Daepyeong-ro)',
+  'E  END AVE': '금남구즉로 (Geumnam-ro)',
+  'AVE B': '소담로 (Sodam-ro)',
+  'AVE C': '반곡로 (Bangok-ro)',
+  'AVE D': '수루배로 (Surubae-ro)',
+  'VANDERBILT AVE': '청사중앙광장길 (Gov. Complex Plaza)',
+  'UNIVERSITY PL': '세종문화예술길 (Sejong Art Rd)',
+  'IRVING PL': '연구원중앙길 (Research Plaza)',
+  'RIVERSIDE DR': '금강 한두리대로 (Geumgang Expwy)',
+  'ST NICHOLAS AVE': '갈매로 (정부세종청사)',
+  'BROADWAY': '한누리대로 (세종 BRT 전용축)',
+  'CENTRAL PARK S': '세종호수남로 (Sejong Lake South)',
+  'CATHEDRAL PKWY': '세종호수북로 (Sejong Lake North)',
+  'WORTH ST': '절재로 (정부세종청사)',
+  'CHAMBERS ST': '다솜로 (국무조정실)',
+  'CENTRE ST': '도움6로 (행안부·국토부)',
+  'LAFAYETTE ST': '한누리대로 (관공서 중심)',
+  'PARK ROW': '도움3로 (기획재정부)',
+  'CHURCH ST': '갈매로 (교육부·복지부)',
+  'NASSAU ST': '시청대로 (세종시청)',
+  'READE ST': '시청대로 (세종시의회)',
+  'FULTON ST': '도움8로 (과기정통부)',
+  'BROAD ST': '국책연구원로 (KDI·경제인문사회)',
+  'WALL ST': '국책연구원로 (KDI·국토연구원)',
+  'CANAL ST': '어울림로 (세종호수·도서관)',
+  'DELANCEY ST': '금강수변대로 (Geumgang Riverside)',
+  'GRAND ST': '새롬중앙로 (Saerom-jungangro)',
+  'E  HOUSTON ST': '어진중앙로 (Eojin-jungangro)',
+  'W  HOUSTON ST': '어진서로 (Eojin-seoro)',
+  'BLEECKER ST': '나성로 (정부청사 남단)',
+  'SPRING ST': '보람로 (세종시청길)',
+  'PRINCE ST': '가름로 (Gareum-ro)',
+  'LIBERTY ST': '법원검찰로 (지방법원·검찰청)',
+  'WATER ST': '보람동 관공서길 (Boram Civic Rd)',
+  'SOUTH ST': '금강 한두리수변로 (Geumgang Riverside)',
+  'WEST ST': '금강수변서로 (Geumgang West Hwy)',
+  'FRANKLIN D ROOSEVELT DR': '한누리동부고속화도로 (Hannuri E Expwy)',
+  '12 AVE': '세종서부순환대로 (Sejong W Ring)',
+  'HENRY HUDSON PKWY': '공주-세종 고속화대로 (Gongju-Sejong Hwy)',
+  'HARLEM RIVER DR': '미호강변북로 (Miho Riverside N)',
+  'BATTERY PARK UNDERPASS': '금강 남측 지하차도 (Geumgang Tunnel)',
+  '4 AVE': '한누리중앙길 (Hannuri Center)',
+  '7 AVE S': '보람중앙로 (Boram Center)',
+  'RIVERSIDE DR W': '금강수변서측길 (Geumgang W)',
+  'RIVERSIDE DR E': '금강수변동측길 (Geumgang E)',
+  'WEST DR': '호수공원순환서로 (Lake Park W)',
+  'S  END AVE': '금강남단순환로 (Geumgang South)',
+  'N  END AVE': '나성남단로 (Naseong South)',
+  'STATE ST': '보람시청남로 (City Hall South)',
+  'BATTERY PL': '금강수변광장로 (Geumgang Plaza)',
+  'VESEY ST': '국책단지중앙로 (Policy Complex Rd)',
+  'BROOME ST': '새롬남로 (Saerom South)',
+  'PEARL ST': '연구단지로 (Research Complex Rd)',
+  'HUDSON ST': '다정중앙로 (Dajeong-ro)',
+  'GREENWICH ST': '다정서로 (Dajeong West)',
+  'GREENWICH AVE': '다정북로 (Dajeong North)',
+  'VARICK ST': '한솔중앙로 (Hansol-ro)',
+  'ALLEN ST': '반곡서로 (Bangok West)',
+  'CHRYSTIE ST': '소담서로 (Sodam West)',
+  'MAIDEN LN': '정책연구2길 (Policy 2-gil)',
+  'MURRAY ST': '법원남로 (Court South)',
+  'DUANE ST': '행정지원1로 (Admin Support 1-ro)',
+  'PARK PL': '청사남광장로 (Complex South Plaza)',
+  'COOPER SQ': '어진문화광장 (Eojin Plaza)',
+  'MORNINGSIDE AVE': '고운북로 (Goun North)',
+  '65 ST TRANSVERSE': '호수공원남측 횡단도로 (Lake Park S)',
+  '79 ST TRANSVERSE': '호수공원중앙 횡단도로 (Lake Park Mid)',
+  '86 ST TRANSVERSE': '호수공원수변 횡단도로 (Lake Park)',
+  '97 ST TRANSVERSE': '호수공원북측 횡단도로 (Lake Park N)',
+  'CENTRAL PARK LENOX AVE ACCESS RD': '도담-호수공원 연결로 (Lake Park Link)',
+  'WILLIS AVE  BRIDGE': '금강대교 연결로 (Geumgang Bridge)'
+};
+
+const PRETTY_SEOUL = {
+  'W  END AVE': '서초대로 (Seocho-daero)',
+  '11 AVE': '서초중앙로 (Seochojungang-ro)',
+  'AMSTERDAM AVE': '사평대로 (Sapyeong-daero)',
+  '10 AVE': '반포대로 (Banpo-daero)',
+  'COLUMBUS AVE': '언주로 북단 (압구정·신사)',
+  '9 AVE': '효령로 (Hyoryeong-ro)',
+  'MANHATTAN AVE': '테헤란로 테크웨이',
+  'FREDERICK DOUGLASS BLVD': '도산대로 (압구정로데오)',
+  'CENTRAL PARK W': '선릉공원서로 (Seolleung West)',
+  '8 AVE': '서초대로 (Seocho-daero)',
+  'ADAM CLAYTON POWELL JR BLVD': '봉은사로 북단 (Bongeunsa N)',
+  '7 AVE': '강남대로 (강남역)',
+  'LENOX AVE': '학동로 (Hakdong-ro)',
+  'MALCOLM X BLVD': '압구정로 (Apgujeong-ro)',
+  'AVE OF THE AMERICAS': '논현로 (역삼역)',
+  '5 AVE': '언주로 (테헤란로 중심)',
+  'MADISON AVE': '테헤란로 중심축 (역삼·선릉)',
+  'PARK AVE': '선릉로 (선릉역)',
+  'PARK AVE S': '선릉남로 (Seolleung-namro)',
+  'LEXINGTON AVE': '삼성로 (포스코사거리)',
+  '3 AVE': '영동대로 (삼성역·코엑스)',
+  '2 AVE': '탄천동로 (Tancheon-dongro)',
+  '1 AVE': '올림픽로 (잠실)',
+  'YORK AVE': '잠실대교 방면 (Jamsil)',
+  'SUTTON PL': '탄천수변길',
+  'PLEASANT AVE': '영동대교 북단',
+  'AVE A': '탄천서로',
+  'E  END AVE': '청담대교 방면',
+  'AVE B': '잠실서로',
+  'AVE C': '종합운동장로',
+  'AVE D': '잠실한강길',
+  'VANDERBILT AVE': '코엑스광장길',
+  'UNIVERSITY PL': '역삼문화길',
+  'IRVING PL': '포스코아트길',
+  'RIVERSIDE DR': '올림픽대로 (Olympic-daero)',
+  'ST NICHOLAS AVE': '도산대로 (청담사거리)',
+  'BROADWAY': '강남대로 · 테헤란 직결축 (Gangnam-daero)',
+  'CENTRAL PARK S': '선정릉남로 (Seolleung South)',
+  'CATHEDRAL PKWY': '선정릉북로 (Seolleung North)',
+  'WORTH ST': '남대문로 (Namdaemun-ro)',
+  'CHAMBERS ST': '태평로 (서울광장·시청)',
+  'CENTRE ST': '을지로 (청계천·서울시청)',
+  'LAFAYETTE ST': '충무로 (명동·을지로)',
+  'PARK ROW': '청계천로 (Cheonggyecheon-ro)',
+  'CHURCH ST': '소공로 (Sogong-ro)',
+  'NASSAU ST': '명동중앙로 (Myeongdong)',
+  'READE ST': '무교로 (서울시청)',
+  'FULTON ST': '여의대로 (금융센터)',
+  'BROAD ST': '여의공원로 (한국거래소)',
+  'WALL ST': '국제금융로 (여의도 금융가)',
+  'CANAL ST': '퇴계로 (Toegye-ro)',
+  'DELANCEY ST': '올림픽대로 한강수변 (Hangang Riverside)',
+  'GRAND ST': '종로 (Jongno)',
+  'E  HOUSTON ST': '동호로 (Dongho-ro)',
+  'W  HOUSTON ST': '장충단로 (Jangchungdan-ro)',
+  'BLEECKER ST': '이태원로 (Itaewon-ro)',
+  'SPRING ST': '가로수길 (신사동)',
+  'PRINCE ST': '신사중앙로 (Sinsa-ro)',
+  'LIBERTY ST': '서초법조로 (서울중앙지법)',
+  'WATER ST': '한강잠원로 (Jamwon Riverside)',
+  'SOUTH ST': '강변북로 한강수변 (Hangang River)',
+  'WEST ST': '올림픽대로 서측 (Olympic-daero W)',
+  'FRANKLIN D ROOSEVELT DR': '동부간선도로 · 강변북로 (Dongbu Expwy)',
+  '12 AVE': '강남서부순환대로 (Banpo-Seocho W)',
+  'HENRY HUDSON PKWY': '강변북로 북단 (Gangbyeonbuk-ro)',
+  'HARLEM RIVER DR': '탄천동부간선로 (Tancheon E Expwy)',
+  'BATTERY PARK UNDERPASS': '남산터널 · 한강지하차도 (Hangang Tunnel)',
+  '4 AVE': '강남역중앙로 (Gangnam Center)',
+  '7 AVE S': '교대역남로 (Gyodae South)',
+  'RIVERSIDE DR W': '한강반포수변길 (Banpo Riverside W)',
+  'RIVERSIDE DR E': '한강잠원수변길 (Jamwon Riverside E)',
+  'WEST DR': '선정릉서측산책길 (Seolleung Park W)',
+  'S  END AVE': '도곡남단로 (Dogok South)',
+  'N  END AVE': '잠원남단로 (Jamwon South)',
+  'STATE ST': '양재역남로 (Yangjae South)',
+  'BATTERY PL': '한강수변광장로 (Hangang Plaza)',
+  'VESEY ST': '여의금융중앙로 (Yeouido Finance)',
+  'BROOME ST': '신사남로 (Sinsa South)',
+  'PEARL ST': '을지금융로 (Eulji Finance)',
+  'HUDSON ST': '반포서래로 (Seorae-ro)',
+  'GREENWICH ST': '신반포서로 (Sinbanpo W)',
+  'GREENWICH AVE': '가로수서로 (Garosu West)',
+  'VARICK ST': '사당방배로 (Bangbae-ro)',
+  'ALLEN ST': '성수아차산로 (Seongsu-ro)',
+  'CHRYSTIE ST': '왕십리남로 (Wangsimni S)',
+  'MAIDEN LN': '명동금융길 (Myeongdong Finance)',
+  'MURRAY ST': '법원검찰남로 (Court South)',
+  'DUANE ST': '태평로1길 (Taepyeong 1-gil)',
+  'PARK PL': '서울광장남로 (Seoul Plaza S)',
+  'COOPER SQ': '대치학여울광장 (Daechi Plaza)',
+  'MORNINGSIDE AVE': '청담북로 (Cheongdam North)',
+  '65 ST TRANSVERSE': '선정릉남측 횡단도로 (Seolleung S)',
+  '79 ST TRANSVERSE': '선정릉중앙 횡단도로 (Seolleung Mid)',
+  '86 ST TRANSVERSE': '선정릉북측 횡단도로 (Seolleung N)',
+  '97 ST TRANSVERSE': '학동공원 횡단도로 (Hakdong Link)',
+  'CENTRAL PARK LENOX AVE ACCESS RD': '삼성-선정릉 연결로 (Seolleung Link)',
+  'WILLIS AVE  BRIDGE': '청담대교 연결로 (Cheongdam Bridge)'
+};
+
+function prettyName(n, city = null) {
+  if (city === 'sejong' && PRETTY_SEJONG[n]) return PRETTY_SEJONG[n];
+  if (city === 'seoul' && PRETTY_SEOUL[n]) return PRETTY_SEOUL[n];
+  if (!city && PRETTY[n]) return PRETTY[n];
   const m = /^(E|W)\s+(\d+)\s+ST$/.exec(n);
   if (m) {
     const num = +m[2];
+    if (city === 'sejong') {
+      if (num === 57) return '다솜로 (정부세종청사)';
+      if (num === 59) return '절재로 (정부청사 남단)';
+      if (num === 65 || num === 66) return '도움6로 (행안부·국토부)';
+      if (num === 72) return '국립도서관길 (세종호수공원)';
+      if (num === 79) return '도움3로 (기재부·산업부)';
+      if (num === 86) return '갈매로 (세종시교육청)';
+      if (num === 96) return '보듬로 (도담 행정타운)';
+      if (num === 110) return '세종호수북로 (Sejong Lake North)';
+      if (num === 116) return '나성로 (어진동 관공서)';
+      if (num === 125) return '한누리대로 북단 (Hannuri BRT North)';
+      if (num >= 50 && num <= 56) return `도움${num - 49}로 (정부세종청사)`;
+      if (num === 42) return '한누리대로 (Hannuri-daero)';
+      if (num === 34) return '어울림로 (Eoullim-ro)';
+      if (num === 48) return '절재로 (Jeoljae-ro)';
+      if (num === 14) return '시청대로 (세종시청)';
+      if (num >= 60) return `세종 관공서 ${num}길 (Sejong Gov ${num}-gil)`;
+      return `어진 행정 ${num}길 (Sejong Civic ${num}-gil)`;
+    }
+    if (city === 'seoul') {
+      if (num === 42) return '테헤란로 (Teheran-ro)';
+      if (num === 34) return '봉은사로 (Bongeunsa-ro)';
+      if (num === 48) return '역삼로 (Yeoksam-ro)';
+      if (num === 58) return '도곡로 (Dogok-ro)';
+      if (num === 23) return '학동로 (Hakdong-ro)';
+      if (num === 53) return '선릉북로 (Seolleung-bukro)';
+      if (num === 45) return '테헤란로 IT타운길';
+      if (num === 38) return '테헤란로 역삼길';
+      if (num === 28) return '논현로 이면길';
+      if (num === 57) return '선정릉남길 (Seolleung S)';
+      if (num === 59) return '도산대로 (Dosan-daero)';
+      if (num === 65 || num === 66) return '압구정로 (Apgujeong-ro)';
+      if (num === 72) return '압구정 한강길 (Apgujeong Hangang)';
+      if (num === 79) return '선릉북단 79길 (Seolleung N)';
+      if (num === 86) return '청담로 86길 (Cheongdam)';
+      if (num === 96) return '성수대로 (Seongsu-daero)';
+      if (num === 110) return '왕십리로 (Wangsimni-ro)';
+      if (num === 116) return '청계천북로 (Cheonggyecheon N)';
+      if (num === 125) return '서울숲대로 (Seoul Forest)';
+      if (num === 14) return '서울시청대로 (Seoul City Hall)';
+      if (num >= 1 && num <= 22) return `강남 남부 ${num}길 (Gangnam ${num}-gil)`;
+      return `테헤란로 ${num}길 (Teheran ${num}-gil)`;
+    }
     if (num === 42) return '테헤란로 (Teheran-ro)';
     if (num === 34) return '봉은사로 (Bongeunsa-ro)';
     if (num === 48) return '역삼로 (Yeoksam-ro)';
@@ -473,7 +719,24 @@ for (const s of GEO.streets) {
 ALL_STREETS.sort((a, b) => a.z - b.z);
 
 // Named roads (the real centreline, merged per street) — maps, labels & lookups
-const ROADS = GEO.roads.map(([name, w, dir, lanes, hw, flat]) => ({ name: prettyName(name), raw: name, w, dir, lanes, highway: !!hw, pts: toPts(flat) }));
+const ROADS = GEO.roads.map(([name, w, dir, lanes, hw, flat]) => ({
+  name: prettyName(name),
+  sejongName: prettyName(name, 'sejong'),
+  seoulName: prettyName(name, 'seoul'),
+  raw: name,
+  w,
+  dir,
+  lanes,
+  highway: !!hw,
+  pts: toPts(flat)
+}));
+
+function getCityRoadName(road, activeCity = null) {
+  if (!road) return '';
+  if (activeCity === 'sejong') return road.sejongName || road.name;
+  if (activeCity === 'seoul') return road.seoulName || road.name;
+  return road.name;
+}
 const LOWER_MANHATTAN_NAMES = [
   ['E  HOUSTON ST', 'Houston St (SoHo / East Village)', 'Houston St', true], ['BLEECKER ST', 'Bleecker St (Greenwich Village)', 'Bleecker St'],
   ['PRINCE ST', 'Prince St (SoHo)', 'Prince St'], ['SPRING ST', 'Spring St (SoHo)', 'Spring St'], ['DELANCEY ST', 'Delancey St (Williamsburg Br)', 'Delancey St', true],
@@ -673,6 +936,7 @@ const CITY_REGIONS = {
     defaultTeleport: 'sejong_complex',
     trafficCorridor: '세종청사 · 한누리대로',
     mapCenter: { x: -40, z: -1850, zoom: 0.24 },
+    mapBounds: { minX: -1250, maxX: 1150, minZ: -5550, maxZ: 5400 },
     waterfrontWest: '금강 한두리 수변공원',
     waterfrontEast: '금강 · 세종보 수변공원',
     parkLabel: '세종호수공원 & 국립세종도서관',
@@ -688,6 +952,7 @@ const CITY_REGIONS = {
     defaultTeleport: 'empire',
     trafficCorridor: '테헤란로 · 강남대로',
     mapCenter: { x: 80, z: 120, zoom: 0.28 },
+    mapBounds: { minX: -1150, maxX: 1250, minZ: -1450, maxZ: 5600 },
     waterfrontWest: '한강 반포 수변공원',
     waterfrontEast: '한강 · 탄천 수변공원',
     parkLabel: '선정릉 도심 왕릉공원',
@@ -819,18 +1084,19 @@ function getBlockBounds(col, row) {
  * Exact street / avenue / landmark name at any world (x, z): the nearest roads of the real street centreline
  */
 function getLocationLabel(x, z, activeCity = null) {
-  const orderedLandmarks = activeCity
-    ? [...NYC_LANDMARKS].sort((a, b) => (a.city === activeCity ? -1 : 1) - (b.city === activeCity ? -1 : 1))
+  const region = activeCity ? getCityRegion(activeCity) : null;
+  const scopedCity = region ? region.id : null;
+  const landmarks = scopedCity
+    ? NYC_LANDMARKS.filter((lm) => lm.city === scopedCity)
     : NYC_LANDMARKS;
-  for (const lm of orderedLandmarks) {
+  for (const lm of landmarks) {
     if (Math.hypot(x - lm.x, z - lm.z) < 80) {
       const near = nearestRoads(x, z, 120);
       const ave = near.find((r) => !r.horizontal);
       const st = near.find((r) => r.horizontal);
-      return `${lm.name}${ave && st ? ` · ${st.road.name} & ${ave.road.name}` : ''}`;
+      return `${lm.name}${ave && st ? ` · ${getCityRoadName(st.road, scopedCity)} & ${getCityRoadName(ave.road, scopedCity)}` : ''}`;
     }
   }
-  const region = activeCity ? getCityRegion(activeCity) : null;
   const cp = CENTRAL_PARK_BOUNDS;
   if (x > cp.minX && x < cp.maxX && z > cp.minZ && z < cp.maxZ) {
     return region ? region.parkLabel : '세종호수공원 & 국립세종도서관 (Sejong Lake Park)';
@@ -844,10 +1110,10 @@ function getLocationLabel(x, z, activeCity = null) {
     const wf = region
       ? (isWest ? region.waterfrontWest : region.waterfrontEast)
       : (isWest ? '금강 수변공원' : '한강 · 탄천 수변공원');
-    return `${wf} 워터프론트${st ? ` · ${st.road.name}` : ''}`;
+    return `${wf} 워터프론트${st ? ` · ${getCityRoadName(st.road, scopedCity)}` : ''}`;
   }
-  if (ave && st) return `${st.road.name} & ${ave.road.name}`;
-  if (near.length) return near[0].road.name;
+  if (ave && st) return `${getCityRoadName(st.road, scopedCity)} & ${getCityRoadName(ave.road, scopedCity)}`;
+  if (near.length) return getCityRoadName(near[0].road, scopedCity);
   return region ? region.fallbackLabel : '세종특별자치시 & 서울 테헤란로 (Sejong · Seoul)';
 }
 
@@ -958,6 +1224,7 @@ export {
   inferCityFromCoords,
   getCityLandmarks,
   getCityTeleports,
+  getCityRoadName,
   getLocationLabel,
   fromOldFrame,
   isTypingInField,
