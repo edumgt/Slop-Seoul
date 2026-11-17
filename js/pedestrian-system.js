@@ -395,7 +395,7 @@ function createPedestrianSystem(network, { player, nearEdges, nearSignals, mayCr
       p.goalZ = destination ? destination.sz + destination.dz * destination.len * 0.5 : p.z;
       p.goalTime = clock + 120 + Math.random() * 180;
     }
-    if (!p.nextRoute && p.route && ahead < 4) {
+    if (!p.nextRoute && p.route && ahead < 6) {
       p.nextRoute = pedRoutes.next(p.route, p.dir, p.goalX, p.goalZ);
       p.nextLeg = 0;
       if (!p.node && p.nextRoute) atCurb(p);
@@ -478,6 +478,7 @@ function createPedestrianSystem(network, { player, nearEdges, nearSignals, mayCr
       p.v = 0;
     }
     if (!dodging && !diving && (p.dir > 0 ? t >= p.len : t <= 0)) {
+      const overshoot = p.dir > 0 ? t - p.len : -t;
       t = p.dir > 0 ? p.len : 0;
       if (p.nextRoute) {
         p.avoidUntil = 0;
@@ -488,10 +489,15 @@ function createPedestrianSystem(network, { player, nearEdges, nearSignals, mayCr
         p.route = leg.track;
         p.walkAt = -1;
         p.dir = leg.dir;
-        t = p.dir > 0 ? 0 : p.len;
+        const carry = p.node ? 0 : Math.min(overshoot, p.len * 0.45);
+        t = p.dir > 0 ? carry : p.len - carry;
         p.t = t;
         if (p.node) atCurb(p); // later arrivals this frame must see the newly occupied entrance
-        if (p.nextLeg === p.nextRoute.length) p.nextRoute = null;
+        if (p.nextLeg === p.nextRoute.length) {
+          p.nextRoute = p.route ? pedRoutes.next(p.route, p.dir, p.goalX, p.goalZ) : null;
+          p.nextLeg = 0;
+          if (!p.node && p.nextRoute) atCurb(p);
+        }
       } else if (!avoiding) {
         p.dir = -p.dir;
         p.walkAt = -1;
@@ -604,10 +610,10 @@ function createPedestrianSystem(network, { player, nearEdges, nearSignals, mayCr
     const sideStep = p.dodgeTarget - p.dodge;
     let fx = p.ux * p.dir, fz = p.uz * p.dir;
     const ahead = p.dir > 0 ? p.len - p.t : p.t, leg = p.nextRoute?.[p.nextLeg];
-    if (leg && ahead < 1 && p.v >= 0.3) {
+    if (leg && ahead < 1.6 && p.v >= 0.3) {
       const nx = leg.track.ux * leg.dir, nz = leg.track.uz * leg.dir;
       if (fx * nx + fz * nz >= -0.9) {
-        const w = 0.5 * (1 - ahead);
+        const w = 0.5 * (1 - ahead / 1.6);
         fx += (nx - fx) * w;
         fz += (nz - fz) * w;
       }
@@ -649,6 +655,7 @@ function createPedestrianSystem(network, { player, nearEdges, nearSignals, mayCr
     }
     meet(dt);
     gatherCurbs();
+    if (pedCrowd.setClock) pedCrowd.setClock(elapsed);
     pedCrowd.begin();
     for (let i = 0; i < NUM_PEDS; i++) {
       const p = peds[i];

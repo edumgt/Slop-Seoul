@@ -139,6 +139,11 @@ const tslStub = {
     };
     return storage;
   },
+  uniform: (val) => {
+    const u = new TNode(() => (Array.isArray(u.value) ? u.value : [u.value]));
+    u.value = val;
+    return u;
+  },
   normalLocal: new TNode([0, 0, 1]),
   varying: (node, name) => {
     const key = name || Symbol('varying');
@@ -173,6 +178,7 @@ const tslStub = {
     if (shaderState.stage === 'fragment') shaderState.sinCallsInFragment++;
     return arr(a).map(Math.sin);
   }),
+  cos: (a) => new TNode(() => arr(a).map(Math.cos)),
   abs: (a) => new TNode(() => arr(a).map(Math.abs)),
   fract: (a) => new TNode(() => arr(a).map((x) => x - Math.floor(x))),
   max: (a, b) => new TNode(() => broadcast(a, b, Math.max)),
@@ -732,3 +738,49 @@ test('poseCharacters skips stationary inactive cyclist IK/uploads and culls park
   assert.equal(person.mesh.visible, true);
   assert.equal(personUpdates, 6);
 });
+
+test('createPersonMaterial TSL vertex walk-cycle animates torso/arms with walkClock when gait > 0 and preserves rest pose at gait = 0', () => {
+  const pose = tslStub.attributeArray(STRIDE);
+  const walkState = tslStub.attributeArray(1);
+  const walkClock = tslStub.uniform(0);
+  pose.value.array.set([0, 0, 0, 1, 0, 0, 0, 1], 0);
+  pose.value.array.set([2.5, 0, 1.0, 0.2], (STRIDE - 1) * 4);
+
+  const mat = createPersonMaterial(pose, 1, walkClock, walkState);
+  shaderState.instanceIndex = 0;
+  shaderState.attrs.skin = [0, 0, 0, 3]; // PART.ARM
+  shaderState.attrs.position = [0.22, 1.25, 0.0];
+  shaderState.attrs.extra = [0, 0, 0.5];
+  shaderState.attrs.femaleDelta = [0, 0, 0];
+  shaderState.attrs.hairDelta = [0, 0, 0];
+
+  // Zero gait -> exact rest pose regardless of walkClock
+  walkState.value.array.set([0.5, 0, 0, 1.4], 0);
+  walkClock.value = 0;
+  const idle0 = mat.positionNode.eval();
+  walkClock.value = 1.1;
+  const idle1 = mat.positionNode.eval();
+  assert.deepEqual(idle0, [0.22, 1.25, 0]);
+  assert.deepEqual(idle1, [0.22, 1.25, 0]);
+
+  // Active gait -> smooth periodic TSL walk-cycle displacement without touching fragment varyings
+  walkState.value.array.set([0, 1.0, 0, 1.4], 0);
+  shaderState.vertexStageEvaluations = 0;
+  const samples = [0, 0.25, 0.5, 0.75].map((t) => {
+    walkClock.value = t;
+    return mat.positionNode.eval();
+  });
+  assert.equal(shaderState.vertexStageEvaluations, 0, 'TSL walk cycle stays strictly in positionNode');
+  const maxDz = Math.max(...samples.map((p) => Math.abs(p[2])));
+  const maxDy = Math.max(...samples.map((p) => Math.abs(p[1] - 1.25)));
+  assert.ok(maxDz > 0.015, 'arm vertex swings forward/back along heading during walk cycle');
+  assert.ok(maxDy > 0.004, 'torso/arm vertical bounce occurs during walk cycle');
+
+  // Ground-planted shoe vertex remains locked at ground height (zero penetration)
+  shaderState.attrs.skin = [0, 0, 0, 2]; // PART.SHOE
+  shaderState.attrs.position = [0.09, 0.02, 0.05];
+  walkClock.value = 0.35;
+  const shoePos = mat.positionNode.eval();
+  assert.equal(shoePos[1], 0.02);
+});
+

@@ -11,12 +11,14 @@ import {
   attribute,
   instanceIndex,
   attributeArray,
+  uniform,
   normalLocal,
   varying,
   vertexStage,
   cross,
   normalize,
   sin,
+  cos,
   abs,
   fract,
   max,
@@ -743,7 +745,7 @@ const qrot = (q, v) => v.add(cross(q.xyz, cross(q.xyz, v).add(v.mul(q.w))).mul(2
  * the near LOD (`detail = 1`) adds fine procedural facial/jacket/shoe detail per body part in the fragment stage,
  * while the far LOD (`detail = 0`) shades its part colours directly in the vertex stage.
  */
-function createPersonMaterial(pose, detail = 1) {
+function createPersonMaterial(pose, detail = 1, walkClock = null, walkState = null) {
   const mat = new THREE.MeshStandardNodeMaterial({ metalness: 0 });
   const base = int(instanceIndex).mul(STRIDE);
   const info = pose.element(base.add(STRIDE - 1)); // seed, female, girth, hair
@@ -766,7 +768,46 @@ function createPersonMaterial(pose, detail = 1) {
     const qb = pose.element(ib);
     const tb = pose.element(ib.add(1));
     normalLocal.assign(normalize(mix(qrot(qa, n), qrot(qb, n), w)));
-    return mix(qrot(qa, p).mul(ta.w).add(ta.xyz), qrot(qb, p).mul(tb.w).add(tb.xyz), w);
+    const skinned = mix(qrot(qa, p).mul(ta.w).add(ta.xyz), qrot(qb, p).mul(tb.w).add(tb.xyz), w);
+
+    if (!walkClock || !walkState) return skinned;
+
+    // Procedural TSL vertex-shader walk-cycle biomechanics (phase, gait amplitude, yaw, speed)
+    const ws = walkState.element(int(instanceIndex));
+    const gait = clamp(ws.y, 0.0, 1.0);
+    const omega = max(ws.w.mul(4.6), 4.2);
+    const theta = ws.x.add(walkClock.mul(omega));
+    const sinT = sin(theta);
+    const cos2T = cos(theta.mul(2.0));
+    const fwdX = sin(ws.z);
+    const fwdZ = cos(ws.z);
+    const rightX = fwdZ;
+    const rightZ = fwdX.mul(-1.0);
+
+    const localY = p.y;
+    const groundClear = smoothstep(0.08, 0.35, localY);
+    const upperMask = smoothstep(0.92, 1.48, localY);
+    const armMask = step(PART.ARM - 0.5, skin.w).mul(step(skin.w, PART.HAND + 0.5));
+    const hairMask = step(PART.LONG_HAIR - 0.5, skin.w);
+    const sideSign = step(0.0, p.x).mul(2.0).sub(1.0);
+
+    const verticalBounce = cos2T.mul(-0.011).mul(groundClear);
+    const hipSway = sinT.mul(0.01).mul(groundClear).mul(float(1.0).sub(upperMask.mul(0.45)));
+    const shoulderRoll = sinT.mul(sideSign).mul(0.014).mul(upperMask);
+    const armPump = sinT.mul(sideSign).mul(-0.045).mul(armMask);
+    const hairSway = cos2T.mul(-0.012).add(sinT.mul(0.008)).mul(hairMask);
+    const legDrive = sin(theta.add(sideSign.mul(1.5707963)))
+      .mul(0.022)
+      .mul(smoothstep(0.12, 0.45, localY))
+      .mul(float(1.0).sub(smoothstep(0.85, 1.1, localY)));
+
+    const forwardDisp = armPump.add(shoulderRoll).add(legDrive);
+    const walkOffset = vec3(
+      rightX.mul(hipSway).add(fwdX.mul(forwardDisp)),
+      verticalBounce.add(hairSway),
+      rightZ.mul(hipSway).add(fwdZ.mul(forwardDisp))
+    ).mul(gait);
+    return skinned.add(walkOffset);
   })();
 
   const skinAttr = attribute('skin', 'vec4');
@@ -972,19 +1013,28 @@ class PersonCrowd {
   constructor(maxCount, { farDistance = 34, castShadow = true } = {}) {
     this.farDistance = farDistance;
     this.updates = 0;
+    this.walkClock = uniform(0);
     const levels = Number.isFinite(farDistance) ? [1, 0] : [1];
     this.lods = levels.map((detail) => {
       const pose = attributeArray(maxCount * STRIDE, 'vec4').toReadOnly();
-      const mesh = new THREE.Mesh(buildPersonGeometry(detail), createPersonMaterial(pose, detail));
+      const walkState = attributeArray(maxCount, 'vec4').toReadOnly();
+      const mesh = new THREE.Mesh(
+        buildPersonGeometry(detail),
+        createPersonMaterial(pose, detail, this.walkClock, walkState)
+      );
       mesh.name = detail ? 'PeopleNear' : 'PeopleFar';
       mesh.count = 1; // one (degenerate) person until warm-up finishes, so the pipelines compile up front
       mesh.frustumCulled = false;
       mesh.castShadow = Boolean(castShadow && detail > 0);
       mesh.receiveShadow = true;
       mesh.matrixAutoUpdate = false;
-      return { pose, mesh, count: 0, max: maxCount, hasZero: true };
+      return { pose, walkState, mesh, count: 0, max: maxCount, hasZero: true };
     });
     this.meshes = this.lods.map((l) => l.mesh);
+  }
+
+  setClock(elapsed) {
+    this.walkClock.value = elapsed;
   }
 
   begin() {
@@ -995,6 +1045,7 @@ class PersonCrowd {
     const l = this.lods.length > 1 && distance > this.farDistance ? this.lods[1] : this.lods[0];
     if (l.count >= l.max) return;
     l.pose.value.array.set(rig.pose, l.count * STRIDE * 4);
+    if (rig.walkState) l.walkState.value.array.set(rig.walkState, l.count * 4);
     l.count++;
   }
 
@@ -1009,6 +1060,11 @@ class PersonCrowd {
             attr.clearUpdateRanges();
             attr.addUpdateRange(0, STRIDE * 4);
             attr.needsUpdate = true;
+            const ws = l.walkState.value;
+            ws.array.fill(0, 0, 4);
+            ws.clearUpdateRanges();
+            ws.addUpdateRange(0, 4);
+            ws.needsUpdate = true;
             l.hasZero = true;
           }
           l.mesh.count = 1;
@@ -1026,6 +1082,10 @@ class PersonCrowd {
       attr.clearUpdateRanges();
       attr.addUpdateRange(0, l.count * STRIDE * 4);
       attr.needsUpdate = true;
+      const ws = l.walkState.value;
+      ws.clearUpdateRanges();
+      ws.addUpdateRange(0, l.count * 4);
+      ws.needsUpdate = true;
     }
   }
 }
@@ -1226,6 +1286,7 @@ class PersonRig {
     this.feet = [makeFoot(1), makeFoot(-1)];
     this.pose = new Float32Array(STRIDE * 4);
     this.pose.set([seed, this.female, girth, hair], (STRIDE - 1) * 4);
+    this.walkState = new Float32Array([seed * 6.2831853, 0, 0, 0]);
   }
 
   get legLength() {
@@ -1261,6 +1322,9 @@ class PersonRig {
     }
     this.pelvisY = this.standY = this.standingHeight((this.feet[0].py + this.feet[1].py) * 0.5);
     this.placed = true;
+    this.walkState[1] = 0;
+    this.walkState[2] = yaw;
+    this.walkState[3] = 0;
     this.solve();
   }
 
@@ -1304,6 +1368,9 @@ class PersonRig {
       this.z = z;
       this.yaw = wrap(this.yaw + clampAbs(wrap(heading - this.yaw), 10 * dt));
       this.vx = this.vz = this.tvx = this.tvz = this.speed = this.gait = this.run = 0;
+      this.walkState[1] = 0;
+      this.walkState[2] = this.yaw;
+      this.walkState[3] = 0;
       if (updatePose) this.solveDive(diveTime, this.diveGround);
       return;
     }
@@ -1332,8 +1399,17 @@ class PersonRig {
     this.run += (smooth(2.3, 3.6, speed) - this.run) * _e30;
     this.updateLean();
 
-    if (air > 0.03) this.updateAirborne(x, z, ground, owner, air);
-    else this.updateGait(dt, x, z, heading, yawErr, ground, owner);
+    if (air > 0.03) {
+      this.updateAirborne(x, z, ground, owner, air);
+      this.walkState[1] = 0;
+      this.walkState[2] = this.yaw;
+      this.walkState[3] = 0;
+    } else {
+      this.updateGait(dt, x, z, heading, yawErr, ground, owner);
+      this.walkState[1] = this.gait;
+      this.walkState[2] = this.yaw;
+      this.walkState[3] = speed;
+    }
     if (updatePose) this.solve();
   }
 
@@ -1773,6 +1849,8 @@ class PersonRig {
     const s = this.s;
     this.gait = 0;
     this.run = 0;
+    this.walkState[1] = 0;
+    this.walkState[3] = 0;
     root.updateWorldMatrix(true, false);
     root.matrixWorld.decompose(_rootPos, _qRoot, _v);
     const toWorld = (local) => local.applyQuaternion(_qRoot).add(_rootPos);
