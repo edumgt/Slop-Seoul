@@ -476,12 +476,18 @@ async function initApp() {
 
   function updateTrafficHud() {
     if (!elTrafficLabel || !trafficSystem?.getCongestionStats) return;
-    const stats = trafficSystem.getCongestionStats();
-    const region = getCityRegion(activeCity);
-    const speedKmh = activeCity === 'sejong' ? stats.sejongSpeedKmh : stats.teheranSpeedKmh;
-    elTrafficLabel.textContent = `${region.shortName} ${stats.statusKo} · ${stats.activeVehicles}대 (평균 ${speedKmh}km/h)`;
+    const where = cameraSystem.getActivePreset().category === 'follow'
+      ? controllerManager.getActiveEntity().position
+      : cameraSystem.currentPos;
+    const stats = trafficSystem.getCongestionStats(where, activeCity);
+    elTrafficLabel.textContent = `${stats.segmentNameKo} · ${stats.levelLabel} (${stats.levelLabelKo}) · ${stats.segmentSpeedKmh}km/h`;
     if (elTrafficDot) {
       elTrafficDot.className = `traffic-dot ${stats.congestionLevel}`;
+    }
+    if (elTrafficInfo) {
+      elTrafficInfo.dataset.trafficLevel = stats.congestionLevel;
+      elTrafficInfo.dataset.trafficSegment = stats.segmentId;
+      elTrafficInfo.title = `${stats.segmentNameKo} (${stats.segmentNameEn}) · ${stats.levelLabel} (${stats.levelLabelKo}) · ${stats.activeVehicles}대`;
     }
   }
 
@@ -565,6 +571,7 @@ async function initApp() {
     timeButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-time') === timeId);
     });
+    updateTrafficHud();
   }
 
   // Popovers (native [popover]: light dismiss & Esc for free) open against the control that toggles them: data-anchor
@@ -721,6 +728,9 @@ async function initApp() {
     };
     if (typeof renderLocation === 'function') {
       renderLocation(getLocationLabel(destination.x, destination.z, cityScope));
+    }
+    if (typeof updateTrafficHud === 'function') {
+      updateTrafficHud();
     }
     return destination;
   }
@@ -958,28 +968,34 @@ async function initApp() {
 
   function afterSoftwareDraw(cb) {
     const gl = renderer.backend?.gl || renderer.domElement?.getContext('webgl2');
-    if (!gl || typeof gl.fenceSync !== 'function') {
-      setTimeout(cb, 150);
+    if (!gl || typeof gl.fenceSync !== 'function' || typeof gl.clientWaitSync !== 'function') {
+      setTimeout(cb, 80);
       return;
     }
     const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    if (!sync) {
+      setTimeout(cb, 80);
+      return;
+    }
     gl.flush();
+    const deadline = performance.now() + 2000;
     const poll = () => {
-      const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
-      if (state === gl.UNSIGNALED) {
-        setTimeout(poll, 10);
+      const status = gl.clientWaitSync(sync, gl.SYNC_FLUSH_COMMANDS_BIT, 0);
+      if (status === gl.TIMEOUT_EXPIRED && performance.now() < deadline) {
+        setTimeout(poll, 16);
       } else {
-        if (sync) gl.deleteSync(sync);
-        setTimeout(cb, 150);
+        gl.deleteSync(sync);
+        setTimeout(cb, 80);
       }
     };
-    setTimeout(poll, 10);
+    setTimeout(poll, 16);
   }
 
   function tick(now) {
     const rawDt = (now - lastTime) * 0.001;
     lastTime = now;
     const dt = Math.min(Math.max(rawDt, 0.001), 0.05);
+    const wallDt = Math.min(Math.max(rawDt, 0.001), 0.75);
     elapsed += dt;
 
     // Update 3rd-person controllers, camera, signals, traffic & vehicle collisions, building LODs, and dynamic shadow focus
@@ -987,15 +1003,19 @@ async function initApp() {
     controllerManager.update(dt, elapsed, cameraSystem.initialized ? cameraSystem.currentPos : null);
     cameraSystem.update(dt, elapsed);
     streetDetails.signalClock.value = elapsed;
-    trafficSystem.update(
+    const changedTrafficSegments = trafficSystem.update(
       dt,
       elapsed,
       cameraSystem.currentPos,
       controllerManager.getActiveEntity(),
       controllerManager.activeMode,
       cameraSystem.camera,
-      lightingSystem.activePresetId
+      lightingSystem.activePresetId,
+      wallDt
     );
+    if (changedTrafficSegments && changedTrafficSegments.length > 0) {
+      updateTrafficHud();
+    }
     highwayTraffic.update(dt, cameraSystem.camera, controllerManager.getActiveEntity(), controllerManager.activeMode);
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();

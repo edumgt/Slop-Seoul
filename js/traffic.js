@@ -5,6 +5,7 @@ import { vehicleContact, resolveVehicleContact, sweptVehicleContact } from './ve
 import { signalPhase, walkSignal } from './city-config.js';
 import { cityUniforms, createContactShadowMaterial, createCarFlareMaterial } from './tsl-materials.js';
 import { HEADLIGHTS, createVehicleHeadlight, placeVehicleHeadlight } from './vehicle-lights.js';
+import { resolveRoadSegment, createTrafficSegmentManager, TRAFFIC_LEVELS } from './traffic-segments.js';
 import {
   BODY_SPECS,
   buildCarGeometry,
@@ -240,6 +241,9 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     e.to.road[e.inSide] = e.from.road[e.outSide] = e;
     e.through = 0; // vehicles from e crossing e.to straight on or to the right
     e.lefts = 0; // and to the left
+    const midX = e.sx + e.dx * (e.len * 0.5);
+    const midZ = e.sz + e.dz * (e.len * 0.5);
+    e.segmentId = resolveRoadSegment(midX, midZ).id;
   }
   // Is the intersection box held by vehicles of any road but group g's?
   const boxBusy = (n, g) => {
@@ -1322,6 +1326,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     v.conn = null;
     v.commit = null;
     v.move = chooseMove(v, false);
+    applyVehicleSegmentProfile(v);
   }
 
   function drive(v, dt) {
@@ -1620,18 +1625,10 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     v.commit = null;
     v.yielding = false;
     v.wait = 0;
-    const midZ = e.sz + e.dz * s;
-    const onCorridor = isTeheranRoCoordinate(focusX, midZ) || Math.abs(midZ) < 55 || isSejongGovCoordinate(focusX, midZ);
-    const spdMult = onCorridor ? currentCongestionProfile.teheranSpeedMult : currentCongestionProfile.speedMultiplier;
-    v.v0 = (v.baseV0 || v.v0) * spdMult;
-    const bd = v.baseDriver || v.driver;
-    v.driver = {
-      ...bd,
-      a: bd.a * currentCongestionProfile.accelFactor,
-      s0: currentCongestionProfile.standstillGap,
-      T: currentCongestionProfile.timeHeadway
-    };
-    v.speed = v.v0 * (currentCongestionProfile.congestionLevel === 'heavy' ? 0.35 : 0.6);
+    applyVehicleSegmentProfile(v);
+    const segLevel = e.segmentId ? segmentManager.getSegmentState(e.segmentId).level : null;
+    const isSlow = segLevel ? (segLevel.id === 'congested' || segLevel.id === 'heavy') : currentCongestionProfile.congestionLevel === 'heavy';
+    v.speed = v.v0 * (isSlow ? 0.35 : 0.65);
     v.acc = 0;
     v.impactTime = 0;
     v.dl = v.dlv = 0;
@@ -1974,24 +1971,40 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   let vehicleCursor = 0;
   let activeTimeSetting = 'golden';
   let currentCongestionProfile = TIME_CONGESTION_PROFILES.golden;
+  const segmentManager = createTrafficSegmentManager({ timeId: activeTimeSetting });
 
-  function applyCongestionToFleet() {
+  function applyVehicleSegmentProfile(v) {
     const prof = currentCongestionProfile;
+    const e = v.edge;
+    const segState = e && e.segmentId
+      ? segmentManager.getSegmentState(e.segmentId)
+      : segmentManager.getStateAt(v.x || focusX, v.z || focusZ);
+    const segLvl = segState.level;
+    const vx = e ? e.sx + e.dx * (v.s || 0) : (v.x || 0);
+    const vz = e ? e.sz + e.dz * (v.s || 0) : (v.z || 0);
+    const onCorridor = isTeheranRoCoordinate(vx, vz) || (e && Math.abs(e.sz) < 55) || isSejongGovCoordinate(vx, vz);
+    const timeSpdMult = onCorridor ? prof.teheranSpeedMult : prof.speedMultiplier;
+    // Blend road-segment congestion level (70%) with time-of-day baseline (30%) for crisp segment differentiation
+    const spdMult = Math.max(0.24, Math.min(1.45, segLvl.speedMultiplier * 0.70 + timeSpdMult * 0.30));
+    const accMult = segLvl.accelFactor * 0.70 + prof.accelFactor * 0.30;
+    v.v0 = (v.baseV0 || v.v0) * spdMult;
+    const bd = v.baseDriver || v.driver;
+    v.driver = {
+      ...bd,
+      a: bd.a * accMult,
+      s0: segLvl.standstillGap * 0.70 + prof.standstillGap * 0.30,
+      T: segLvl.timeHeadway * 0.70 + prof.timeHeadway * 0.30
+    };
+    if (v.speed > v.v0 * 1.3) {
+      v.speed = Math.max(v.v0, v.speed * 0.92);
+    }
+  }
+
+  function applyCongestionToFleet(changedSegmentIds = null) {
     for (let i = 0; i < vehicles.length; i++) {
       const v = vehicles[i];
-      const onCorridor = isTeheranRoCoordinate(v.x, v.z) || (v.edge && Math.abs(v.edge.sz) < 55) || isSejongGovCoordinate(v.x, v.z);
-      const spdMult = onCorridor ? prof.teheranSpeedMult : prof.speedMultiplier;
-      v.v0 = (v.baseV0 || v.v0) * spdMult;
-      const bd = v.baseDriver || v.driver;
-      v.driver = {
-        ...bd,
-        a: bd.a * prof.accelFactor,
-        s0: prof.standstillGap,
-        T: prof.timeHeadway
-      };
-      if (v.speed > v.v0 * 1.3) {
-        v.speed = Math.max(v.v0, v.speed * 0.92);
-      }
+      if (changedSegmentIds && (!v.edge || !changedSegmentIds.has(v.edge.segmentId))) continue;
+      applyVehicleSegmentProfile(v);
     }
   }
 
@@ -1999,6 +2012,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     if (TIME_CONGESTION_PROFILES[timeId] && activeTimeSetting !== timeId) {
       activeTimeSetting = timeId;
       currentCongestionProfile = TIME_CONGESTION_PROFILES[timeId];
+      segmentManager.setTimeOfDay(timeId);
       applyCongestionToFleet();
     }
   }
@@ -2007,13 +2021,20 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     return activeTimeSetting;
   }
 
-  function getCongestionStats() {
+  function getCongestionStats(pos = null, cityId = null) {
+    const qX = pos && Number.isFinite(pos.x) ? pos.x : focusX;
+    const qZ = pos && Number.isFinite(pos.z) ? pos.z : focusZ;
+    const segState = segmentManager.getStateAt(qX, qZ, cityId);
+    const segLvl = segState.level;
+
     let active = 0;
     let teheranCount = 0;
     let sejongCount = 0;
+    let segCount = 0;
     let totalSpeed = 0;
     let teheranSpeed = 0;
     let sejongSpeed = 0;
+    let segSpeed = 0;
 
     for (let i = 0; i < vehicles.length; i++) {
       const v = vehicles[i];
@@ -2021,6 +2042,10 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       active++;
       const kmh = v.speed * 3.6;
       totalSpeed += kmh;
+      if (v.edge.segmentId === segState.segmentId) {
+        segCount++;
+        segSpeed += kmh;
+      }
       if (isTeheranRoCoordinate(v.x, v.z) || (v.edge && Math.abs(v.edge.sz) < 55)) {
         teheranCount++;
         teheranSpeed += kmh;
@@ -2033,26 +2058,43 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     const avgSpeed = active > 0 ? totalSpeed / active : 0;
     const avgTeheranSpeed = teheranCount > 0 ? teheranSpeed / teheranCount : avgSpeed;
     const avgSejongSpeed = sejongCount > 0 ? sejongSpeed / sejongCount : avgSpeed;
+    const avgSegmentSpeed = segCount > 0
+      ? segSpeed / segCount
+      : (segState.city === 'sejong' ? avgSejongSpeed : avgTeheranSpeed);
 
     return {
       timeId: activeTimeSetting,
       nameKo: currentCongestionProfile.nameKo,
-      congestionLevel: currentCongestionProfile.congestionLevel,
-      congestionIndex: currentCongestionProfile.congestionIndex,
+      segmentId: segState.segmentId,
+      segmentNameKo: segState.segmentNameKo,
+      segmentNameEn: segState.segmentNameEn,
+      congestionLevel: segLvl.dotClass,
+      levelLabel: segLvl.label,
+      levelLabelKo: segLvl.labelKo,
+      dotColor: segLvl.dotColor,
+      congestionIndex: segLvl.congestionIndex,
       activeVehicles: active,
+      segmentVehicles: segCount,
       targetVehicles: Math.round(vehicles.length * currentCongestionProfile.densityRatio),
       totalPool: vehicles.length,
       averageSpeedKmh: Math.round(avgSpeed),
+      segmentSpeedKmh: Math.round(avgSegmentSpeed),
       teheranSpeedKmh: Math.round(avgTeheranSpeed),
       sejongSpeedKmh: Math.round(avgSejongSpeed),
-      statusKo: currentCongestionProfile.statusKo,
-      label: currentCongestionProfile.label
+      statusKo: segLvl.labelKo,
+      label: `${segState.segmentNameKo} · ${segLvl.label}`,
+      segmentStates: segmentManager.getAllSegmentStates()
     };
   }
 
-  function update(dt, elapsed, focusPos = null, playerEntity = null, activeMode = 'car', camera = null, timeOfDay = null) {
+  function update(dt, elapsed, focusPos = null, playerEntity = null, activeMode = 'car', camera = null, timeOfDay = null, realDt = dt) {
     if (timeOfDay && timeOfDay !== activeTimeSetting && TIME_CONGESTION_PROFILES[timeOfDay]) {
       setTimeOfDay(timeOfDay);
+    }
+    const segmentStep = Number.isFinite(realDt) ? realDt : dt;
+    const changedSegments = segmentManager.update(segmentStep);
+    if (changedSegments.length > 0) {
+      applyCongestionToFleet(new Set(changedSegments.map((c) => c.segmentId)));
     }
     clock = elapsed;
     avePhase = signalPhase(elapsed, true);
@@ -2201,6 +2243,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       playerEntity.lastCollisionSpark = null;
     }
     updateSparks(dt);
+    return changedSegments;
   }
 
   return {
@@ -2210,6 +2253,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     setTimeOfDay,
     getTimeOfDay,
     getCongestionStats,
+    segmentManager,
+    TRAFFIC_LEVELS,
     TIME_CONGESTION_PROFILES,
     cars,
     buses,

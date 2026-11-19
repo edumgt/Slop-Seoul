@@ -1072,7 +1072,14 @@ body[data-mode='helicopter'] .gauge-alt {
   font-weight: 500;
   color: var(--text-2);
   white-space: nowrap;
+  overflow: hidden;
   letter-spacing: -0.01em;
+}
+
+#hud-traffic-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .traffic-dot {
@@ -1080,28 +1087,43 @@ body[data-mode='helicopter'] .gauge-alt {
   height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
+  background: #22c55e;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.traffic-dot.congested {
   background: #ff4d4f;
-  transition: background 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 0 7px rgba(255, 77, 79, 0.8);
 }
 
 .traffic-dot.heavy {
-  background: #ff4d4f;
-  box-shadow: 0 0 6px rgba(255, 77, 79, 0.7);
+  background: #fb923c;
+  box-shadow: 0 0 7px rgba(251, 146, 60, 0.78);
+}
+
+.traffic-dot.normal {
+  background: #facc15;
+  box-shadow: 0 0 7px rgba(250, 204, 21, 0.72);
+}
+
+.traffic-dot.smooth {
+  background: #22c55e;
+  box-shadow: 0 0 7px rgba(34, 197, 94, 0.75);
 }
 
 .traffic-dot.busy {
-  background: #faad14;
-  box-shadow: 0 0 6px rgba(250, 173, 20, 0.7);
+  background: #fb923c;
+  box-shadow: 0 0 6px rgba(251, 146, 60, 0.7);
 }
 
 .traffic-dot.moderate {
-  background: #52c41a;
-  box-shadow: 0 0 6px rgba(82, 196, 26, 0.7);
+  background: #facc15;
+  box-shadow: 0 0 6px rgba(250, 204, 21, 0.7);
 }
 
 .traffic-dot.light {
-  background: #1890ff;
-  box-shadow: 0 0 6px rgba(24, 144, 255, 0.7);
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.7);
 }
 
 .camera-switch {
