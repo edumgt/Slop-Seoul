@@ -5,16 +5,25 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const read = (path) => readFileSync(join(__dirname, '..', path), 'utf8');
-let TELEPORT_LOCATIONS, LANDMARK_SITES, blockAt, nearestRoads, getIslandBoundsAtZ;
+let TELEPORT_LOCATIONS, LANDMARK_SITES, blockAt, nearestRoads, getIslandBoundsAtZ, MUSEUM_BOUNDS;
 test.before(async () => {
   ({ TELEPORT_LOCATIONS, LANDMARK_SITES, blockAt, nearestRoads, getIslandBoundsAtZ } = await import('../js/city-config.js'));
+  ({ MUSEUM_BOUNDS } = await import('../js/museum-config.js'));
 });
 
-test('every teleport button has a destination on a real roadway inside Manhattan', () => {
+test('every teleport button has a destination on a real roadway inside Manhattan or inside the museum hall', () => {
   const buttons = [...read('index.html').matchAll(/data-teleport="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual(Object.keys(TELEPORT_LOCATIONS).sort(), buttons.sort());
   for (const [name, point] of Object.entries(TELEPORT_LOCATIONS)) {
     assert.ok(Number.isFinite(point.heading), `${name} has a heading`);
+    if (name.startsWith('museum_')) {
+      assert.ok(
+        point.x > MUSEUM_BOUNDS.minX + 1 && point.x < MUSEUM_BOUNDS.maxX - 1 &&
+        point.z > MUSEUM_BOUNDS.minZ + 1 && point.z < MUSEUM_BOUNDS.maxZ - 1,
+        `${name} stays inside the National Museum of Korea hall`
+      );
+      continue;
+    }
     assert.equal(blockAt(point.x, point.z), null, `${name} lands outside building blocks`);
     const shore = getIslandBoundsAtZ(point.z);
     assert.ok(point.x > shore.westX + 8 && point.x < shore.eastX - 8, `${name} stays on the island`);

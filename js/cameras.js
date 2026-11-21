@@ -1,25 +1,31 @@
 import * as THREE from 'three/webgpu';
 import { bryantParkLawn } from './landmarks.js';
 
+const MUSEUM_ORIGIN = { x: 24000, y: 0, z: 0 };
+
 // Chase, action, cockpit, fixed-location and aerial cameras, with mouse/touch orbit and zoom.
 
 const CAMERA_PRESETS = [
-  { id: 'chase',          name: '3인칭 추적 (Chase)',        category: 'follow', city: 'all',    fov: 56 },
-  { id: 'action',         name: '로우앵글 액션 (Action)',    category: 'follow', city: 'all',    fov: 60 },
-  { id: 'pov',            name: '1인칭 운전석 (Cockpit)',   category: 'follow', city: 'all',    fov: 68 },
+  { id: 'chase',               name: '3인칭 추적 (Chase)',        category: 'follow', city: 'all',    fov: 56 },
+  { id: 'action',              name: '로우앵글 액션 (Action)',    category: 'follow', city: 'all',    fov: 60 },
+  { id: 'pov',                 name: '1인칭 시점 (First-Person)', category: 'follow', city: 'all',    fov: 68 },
   // Sejong City scenic viewpoints
-  { id: 'centralPark',    name: '세종호수공원 & 국립도서관', category: 'scenic', city: 'sejong', fov: 52 },
-  { id: 'sejongComplex',  name: '정부세종청사 · 다솜로',     category: 'scenic', city: 'sejong', fov: 50 },
-  { id: 'sejongGovTower', name: '국무총리실 & 시청대로',     category: 'scenic', city: 'sejong', fov: 48 },
-  { id: 'sejongDrone',    name: '세종시 행정타운 드론 뷰',    category: 'scenic', city: 'sejong', fov: 50 },
+  { id: 'centralPark',         name: '세종호수공원 & 국립도서관', category: 'scenic', city: 'sejong', fov: 52 },
+  { id: 'sejongComplex',       name: '정부세종청사 · 다솜로',     category: 'scenic', city: 'sejong', fov: 50 },
+  { id: 'sejongGovTower',      name: '국무총리실 & 시청대로',     category: 'scenic', city: 'sejong', fov: 48 },
+  { id: 'sejongDrone',         name: '세종시 행정타운 드론 뷰',    category: 'scenic', city: 'sejong', fov: 50 },
   // Seoul Teheran-ro scenic viewpoints
-  { id: 'fifthAve',       name: '강남역 & 테헤란로 중심',    category: 'scenic', city: 'seoul',  fov: 48 },
-  { id: 'timesSquare',    name: '코엑스 K-POP 스퀘어',      category: 'scenic', city: 'seoul',  fov: 58 },
-  { id: 'chryslerGCT',    name: '한국무역센터 & 영동대로',   category: 'scenic', city: 'seoul',  fov: 50 },
-  { id: 'observatory',    name: 'GFC 타워 전망대',          category: 'scenic', city: 'seoul',  fov: 52 },
-  { id: 'bryantPark',     name: '포스코센터 & 선릉 도심숲',  category: 'scenic', city: 'seoul',  fov: 52 },
-  { id: 'waterfront',     name: '한강 · 탄천 워터프론트',    category: 'scenic', city: 'seoul',  fov: 46 },
-  { id: 'drone',          name: '서울 테헤란로 드론 뷰',     category: 'scenic', city: 'seoul',  fov: 50 }
+  { id: 'fifthAve',            name: '강남역 & 테헤란로 중심',    category: 'scenic', city: 'seoul',  fov: 48 },
+  { id: 'timesSquare',         name: '코엑스 K-POP 스퀘어',      category: 'scenic', city: 'seoul',  fov: 58 },
+  { id: 'chryslerGCT',         name: '한국무역센터 & 영동대로',   category: 'scenic', city: 'seoul',  fov: 50 },
+  { id: 'observatory',         name: 'GFC 타워 전망대',          category: 'scenic', city: 'seoul',  fov: 52 },
+  { id: 'bryantPark',          name: '포스코센터 & 선릉 도심숲',  category: 'scenic', city: 'seoul',  fov: 52 },
+  { id: 'waterfront',          name: '한강 · 탄천 워터프론트',    category: 'scenic', city: 'seoul',  fov: 46 },
+  { id: 'drone',               name: '서울 테헤란로 드론 뷰',     category: 'scenic', city: 'seoul',  fov: 50 },
+  // National Museum of Korea indoor viewpoints
+  { id: 'museumAtrium',        name: '역사의 길 · 중앙 홀 전경',  category: 'scenic', city: 'museum', fov: 54 },
+  { id: 'museumPagoda',        name: '경천사지 십층석탑 전경',    category: 'scenic', city: 'museum', fov: 52 },
+  { id: 'museumContemplation', name: '사유의 방 · 반가사유상',    category: 'scenic', city: 'museum', fov: 50 }
 ];
 
 class CameraSystem {
@@ -51,10 +57,15 @@ class CameraSystem {
     this.followLookOffset = new THREE.Vector3();
     this.followBaseY = 0;
     this.smoothedSpeed = 0;
+    this.indoorBounds = null;
     this._desiredPos = new THREE.Vector3();
     this._desiredLook = new THREE.Vector3();
 
     this.bindPointerControls();
+  }
+
+  setIndoorBounds(bounds = null) {
+    this.indoorBounds = bounds || null;
   }
 
   bindPointerControls() {
@@ -194,8 +205,10 @@ class CameraSystem {
 
     switch (this.activePresetId) {
       case 'chase': {
-        const dist = entity.chaseDistance * this.zoomMultiplier * (1 + Math.min(0.25, this.smoothedSpeed * 0.01));
-        const height = entity.chaseHeight * this.zoomMultiplier + Math.sin(this.orbitPitchOffset) * dist * 0.85;
+        const rawDist = entity.chaseDistance * this.zoomMultiplier * (1 + Math.min(0.25, this.smoothedSpeed * 0.01));
+        const dist = this.indoorBounds ? Math.min(rawDist, 4.4) : rawDist;
+        const baseHeight = this.indoorBounds ? Math.min(entity.chaseHeight, 1.95) : entity.chaseHeight;
+        const height = baseHeight * this.zoomMultiplier + Math.sin(this.orbitPitchOffset) * dist * 0.85;
         const horizDist = Math.cos(this.orbitPitchOffset) * dist + speedLag;
 
         desiredPos.set(
@@ -204,7 +217,7 @@ class CameraSystem {
           entity.position.z - Math.cos(totalYaw) * horizDist
         );
 
-        const lookUpBias = entity.type === 'helicopter' ? 0.2 : (entity.type === 'car' ? 0.52 : 1.55);
+        const lookUpBias = entity.type === 'helicopter' ? 0.2 : (entity.type === 'car' ? 0.52 : (this.indoorBounds ? 1.45 : 1.55));
         desiredLook.set(
           entity.position.x + Math.sin(entity.heading) * 5.2,
           entity.position.y + entity.cameraTargetOffset.y + lookUpBias,
@@ -358,6 +371,34 @@ class CameraSystem {
         desiredLook.set(60.0, 160.0, 250.0);
         break;
       }
+
+      case 'museumAtrium': {
+        const sway = Math.sin(elapsed * 0.25) * 1.4;
+        desiredPos.set(MUSEUM_ORIGIN.x + sway, 4.4, MUSEUM_ORIGIN.z + 36.0);
+        desiredLook.set(MUSEUM_ORIGIN.x, 5.2, MUSEUM_ORIGIN.z - 40.0);
+        break;
+      }
+
+      case 'museumPagoda': {
+        const sway = Math.sin(elapsed * 0.22) * 2.2;
+        desiredPos.set(MUSEUM_ORIGIN.x + sway, 3.8, MUSEUM_ORIGIN.z - 22.0);
+        desiredLook.set(MUSEUM_ORIGIN.x, 6.8, MUSEUM_ORIGIN.z - 40.0);
+        break;
+      }
+
+      case 'museumContemplation': {
+        const sway = Math.sin(elapsed * 0.2) * 0.8;
+        desiredPos.set(MUSEUM_ORIGIN.x + 12.8, 2.25, MUSEUM_ORIGIN.z + sway);
+        desiredLook.set(MUSEUM_ORIGIN.x + 18.2, 1.75, MUSEUM_ORIGIN.z);
+        break;
+      }
+    }
+
+    if (this.indoorBounds) {
+      const b = this.indoorBounds;
+      desiredPos.x = Math.max(b.minX + 0.45, Math.min(b.maxX - 0.45, desiredPos.x));
+      desiredPos.z = Math.max(b.minZ + 0.45, Math.min(b.maxZ - 0.45, desiredPos.z));
+      desiredPos.y = Math.max(0.7, Math.min((b.ceilingY || 17.5) - 1.2, desiredPos.y));
     }
 
     if (!this.initialized || this.activePresetId === 'pov') {
@@ -366,11 +407,6 @@ class CameraSystem {
       this.initialized = true;
       this.followEntity = null; // the follow cameras re-anchor from here
     } else if (this.activePresetId === 'chase' || this.activePresetId === 'action') {
-      // Smoothed in the followed entity's frame rather than in world space. A world-space follower trails a moving
-      // target by a distance that depends on the frame time (about speed x dt), so with uneven frame times the camera
-      // surged back and forth behind an accelerating or fast car. Relative to the entity a steady drive keeps the
-      // camera steady, while turns, orbit drags, zoom & the speed pull-back are still eased. The entity's height is
-      // eased in world space (curbs, park lawns, jumps, the helicopter climbing).
       if (this.followEntity !== entity) {
         // preset or mode switch: start from where the camera is and glide over to the new framing
         this.followEntity = entity;
@@ -385,6 +421,12 @@ class CameraSystem {
       this.currentPos.set(entity.position.x, this.followBaseY, entity.position.z).add(this.followOffset);
       this.currentLookAt.set(entity.position.x, this.followBaseY, entity.position.z).add(this.followLookOffset);
       this.currentPos.y = Math.max(0.55, this.currentPos.y);
+      if (this.indoorBounds) {
+        const b = this.indoorBounds;
+        this.currentPos.x = Math.max(b.minX + 0.45, Math.min(b.maxX - 0.45, this.currentPos.x));
+        this.currentPos.z = Math.max(b.minZ + 0.45, Math.min(b.maxZ - 0.45, this.currentPos.z));
+        this.currentPos.y = Math.max(0.7, Math.min((b.ceilingY || 17.5) - 1.2, this.currentPos.y));
+      }
     } else {
       this.followEntity = null;
       const k = 1 - Math.exp(-dt * 8.5);

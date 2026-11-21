@@ -439,6 +439,10 @@ body.hud-minimized .toolbar-lnb .lnb-utility > :not(#btn-toggle-hud) {
   gap: 3px;
 }
 
+.city-btn-wide {
+  grid-column: 1 / -1;
+}
+
 .city-btn,
 .time-btn,
 .weather-btn {
@@ -724,11 +728,28 @@ body[data-city='sejong'] .pop-switch-city {
 }
 
 body[data-city='seoul'] .pop-switch-city {
+  color: #e4be73;
+}
+
+body[data-city='museum'] .pop-switch-city {
   color: #5ee39a;
 }
 
 body[data-city='sejong'] [data-city-group='seoul'],
-body[data-city='seoul'] [data-city-group='sejong'] {
+body[data-city='sejong'] [data-city-group='museum'],
+body[data-city='seoul'] [data-city-group='sejong'],
+body[data-city='seoul'] [data-city-group='museum'],
+body[data-city='museum'] [data-city-group='sejong'],
+body[data-city='museum'] [data-city-group='seoul'] {
+  display: none;
+}
+
+body[data-city='museum'] .lnb-weather-section,
+body[data-city='museum'] .lnb-weather-divider {
+  display: none;
+}
+
+body[data-city='museum'] .mode-btn:not([data-mode='person']) {
   display: none;
 }
 
@@ -736,6 +757,12 @@ body[data-city='seoul'] #brand-badge {
   background: var(--taxi);
   color: var(--taxi-ink);
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.2), 0 2px 6px rgba(255, 194, 26, 0.3);
+}
+
+body[data-city='museum'] #brand-badge {
+  background: #c89d4e;
+  color: #17130d;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.25), 0 2px 8px rgba(200, 157, 78, 0.35);
 }
 
 /* ------------------------------------------------------------------------------------------------------------------

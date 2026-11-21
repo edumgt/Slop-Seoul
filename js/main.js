@@ -29,6 +29,13 @@ import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling } from './scene-culling.js';
 import { CityAudioSystem } from './audio-system.js';
 import { WeatherSystem } from './weather-system.js';
+import { buildNationalMuseumInterior } from './museum-interior.js';
+import {
+  MUSEUM_BOUNDS,
+  getAllowedModesForCity,
+  resolveModeForCity,
+  getMuseumZoneAt
+} from './museum-config.js';
 
 // Application setup, shader warm-up and frame loop.
 
@@ -147,6 +154,7 @@ async function initApp() {
     const initSejongState = sejongLighting.setTimeOfDay(lightingSystem.activePresetId, { immediate: true });
     document.body.dataset.sejongLighting = initSejongState.activeMode;
   }
+  const museumInterior = buildNationalMuseumInterior(scene, { isSoftwareGl });
   markInit('landmarks');
   await showLoadingStage('Generating building footprints and facades...', 'blocks');
   const cityBlocks = buildCityBlocks(scene, landmarkColliders);
@@ -192,7 +200,7 @@ async function initApp() {
 
   let activeCity = 'sejong';
   if (savedPlayerState) {
-    if (savedPlayerState.activeCity === 'sejong' || savedPlayerState.activeCity === 'seoul') {
+    if (savedPlayerState.activeCity === 'sejong' || savedPlayerState.activeCity === 'seoul' || savedPlayerState.activeCity === 'museum') {
       activeCity = savedPlayerState.activeCity;
     } else {
       const ent = controllerManager.getActiveEntity();
@@ -245,11 +253,40 @@ async function initApp() {
     .map((name) => scene.getObjectByName(name))
     .filter(Boolean);
   const sceneCullingControl = setupSceneCulling(scene, cullingRoots, lightingSystem.sunLight.shadow);
+  const outdoorRoots = [
+    ...cullingRoots,
+    trafficSystem.group,
+    highwayTraffic.group,
+    weatherSystem.group,
+    scene.getObjectByName('StoreClusteredLights'),
+    scene.getObjectByName('StreetClusteredLights')
+  ].filter(Boolean);
   let worldCitySplitReady = false;
   function applyWorldCityVisibility(cityId) {
+    const isMuseum = cityId === 'museum';
+    museumInterior.setActive(isMuseum, lightingSystem.activePresetId);
     if (!worldCitySplitReady) return;
-    setLandmarksCity?.(cityId);
-    sceneCullingControl?.setActiveCity(cityId);
+    for (const root of outdoorRoots) root.visible = !isMuseum;
+    if (lightingSystem.sky) lightingSystem.sky.visible = !isMuseum;
+    if (lightingSystem.sunLight) lightingSystem.sunLight.visible = !isMuseum;
+    if (lightingSystem.hemiLight) lightingSystem.hemiLight.visible = !isMuseum;
+    if (isMuseum) {
+      if (weatherSystem) {
+        if (weatherSystem.uLensRainIntensity) weatherSystem.uLensRainIntensity.value = 0;
+        if (weatherSystem.uScreenFogDensity) weatherSystem.uScreenFogDensity.value = 0;
+        if (weatherSystem.uScreenFogShift) weatherSystem.uScreenFogShift.value = 0;
+        if (weatherSystem.uSurfaceRippleIntensity) weatherSystem.uSurfaceRippleIntensity.value = 0;
+        if (weatherSystem.uWeatherContrastShift) weatherSystem.uWeatherContrastShift.value = 0;
+        if (weatherSystem.uWeatherSaturationShift) weatherSystem.uWeatherSaturationShift.value = 0;
+        if (weatherSystem.uLightningIntensity) weatherSystem.uLightningIntensity.value = 0;
+      }
+      museumInterior.setTimeOfDay(lightingSystem.activePresetId);
+    } else {
+      setLandmarksCity?.(cityId);
+      sceneCullingControl?.setActiveCity(cityId);
+      lightingSystem.applyPreset(lightingSystem.activePresetId, true);
+      weatherSystem.applyWeather(weatherSystem.getWeather(), lightingSystem.activePresetId);
+    }
   }
 
   // Initialize static world matrices once, including the chunks and shadow proxies created above.
@@ -258,6 +295,8 @@ async function initApp() {
     trafficSystem.group,
     highwayTraffic.group,
     weatherSystem.group,
+    museumInterior.group,
+    museumInterior.visitorGroup,
     scene.getObjectByName('StoreClusteredLights'),
     scene.getObjectByName('StreetClusteredLights'),
     ...Object.values(controllerManager.entities).map((entity) => entity.mesh),
@@ -362,7 +401,7 @@ async function initApp() {
   const elTrafficDot = document.getElementById('hud-traffic-dot');
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
     onCycleMode: (step) => {
-      const modes = ['person', 'car', 'cyclist', 'helicopter'];
+      const modes = getAllowedModesForCity(activeCity);
       selectMode(modes[(modes.indexOf(controllerManager.activeMode) + step + modes.length) % modes.length]);
     },
     onCycleCamera: cycleCamera,
@@ -373,6 +412,7 @@ async function initApp() {
   // Keyboard guide for each mode: [keys, action]
   const controlHints = {
     person: [[['W', 'S'], '걷기 / 달리기'], [['A', 'D'], '방향 전환'], [['Space'], '점프'], [['드래그'], '시점 회전']],
+    museum_person: [[['W', 'S'], '박물관 걷기'], [['A', 'D'], '방향 전환'], [['V'], '1인칭 / 3인칭 시점'], [['드래그'], '전시관 둘러보기']],
     car: [[['W', 'S'], '가속 / 후진'], [['A', 'D'], '스티어링'], [['B'], '경적'], [['드래그'], '시점 회전']],
     cyclist: [[['W', 'S'], '페달 / 브레이크'], [['A', 'D'], '선회 & 린'], [['드래그'], '시점 회전']],
     helicopter: [[['W', 'S'], '피치 제어'], [['A', 'D'], '요(Yaw) 선회'], [['Space', 'E'], '상승'], [['Q', 'C'], '하강']]
@@ -419,14 +459,24 @@ async function initApp() {
       car: { btnLabel: '서울 택시', btnTitle: '서울 택시 [2]', hudLabel: '서울 택시 (Seoul Taxi)' },
       cyclist: { btnLabel: '따릉이', btnTitle: '서울 따릉이 [3]', hudLabel: '서울 따릉이 (Ddareungi)' },
       helicopter: { btnLabel: '헬기', btnTitle: '한강·테헤란 헬기 [4]', hudLabel: '한강·테헤란 헬기 (Helicopter)' }
+    },
+    museum: {
+      person: { btnLabel: '도보 관람 (전용)', btnTitle: '국립중앙박물관 실내 도보 전용 [1]', hudLabel: '박물관 도보 관람 (Walk Only)' },
+      car: { btnLabel: '차량 불가', btnTitle: '박물관 실내는 도보 관람만 가능합니다', hudLabel: '도보 관람 전용' },
+      cyclist: { btnLabel: '자전거 불가', btnTitle: '박물관 실내는 도보 관람만 가능합니다', hudLabel: '도보 관람 전용' },
+      helicopter: { btnLabel: '헬기 불가', btnTitle: '박물관 실내는 도보 관람만 가능합니다', hudLabel: '도보 관람 전용' }
     }
   };
 
   function updateVehicleLabelsForCity(cityId) {
     const labels = CITY_VEHICLE_LABELS[cityId] || CITY_VEHICLE_LABELS.sejong;
+    const allowedModes = getAllowedModesForCity(cityId);
     modeButtons.forEach((btn) => {
       const m = btn.getAttribute('data-mode');
       const spec = labels[m];
+      const allowed = allowedModes.includes(m);
+      btn.disabled = !allowed;
+      btn.setAttribute('aria-disabled', String(!allowed));
       if (!spec) return;
       btn.title = spec.btnTitle;
       const span = btn.querySelector('.mode-label');
@@ -438,15 +488,16 @@ async function initApp() {
   }
 
   function selectMode(mode) {
-    controllerManager.setMode(mode);
+    const resolvedMode = resolveModeForCity(activeCity, mode);
+    controllerManager.setMode(resolvedMode);
     touchControls.setMode(controllerManager.activeMode);
     gamepadControls.reset();
     modeButtons.forEach((btn) => {
-      btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
+      btn.classList.toggle('active', btn.getAttribute('data-mode') === controllerManager.activeMode);
     });
-    document.body.dataset.mode = mode;
+    document.body.dataset.mode = controllerManager.activeMode;
     updateVehicleLabelsForCity(activeCity);
-    renderControlHints(mode);
+    renderControlHints(activeCity === 'museum' ? 'museum_person' : controllerManager.activeMode);
 
     // If currently on a static scenic camera, switch to 3rd-Person Chase so user sees their selected character/vehicle
     const currentCam = cameraSystem.getActivePreset();
@@ -475,10 +526,24 @@ async function initApp() {
   }
 
   function updateTrafficHud() {
-    if (!elTrafficLabel || !trafficSystem?.getCongestionStats) return;
+    if (!elTrafficLabel) return;
     const where = cameraSystem.getActivePreset().category === 'follow'
       ? controllerManager.getActiveEntity().position
       : cameraSystem.currentPos;
+    if (activeCity === 'museum') {
+      const zone = getMuseumZoneAt(where.x, where.z);
+      elTrafficLabel.textContent = `${zone.nameKo} · 도보 전용 (Walk Only)`;
+      if (elTrafficDot) {
+        elTrafficDot.className = 'traffic-dot smooth';
+      }
+      if (elTrafficInfo) {
+        elTrafficInfo.dataset.trafficLevel = 'walk-only';
+        elTrafficInfo.dataset.trafficSegment = zone.id;
+        elTrafficInfo.title = `국립중앙박물관 ${zone.nameKo} (${zone.nameEn}) · 실내 도보 관람 전용`;
+      }
+      return;
+    }
+    if (!trafficSystem?.getCongestionStats) return;
     const stats = trafficSystem.getCongestionStats(where, activeCity);
     elTrafficLabel.textContent = `${stats.segmentNameKo} · ${stats.levelLabel} (${stats.levelLabelKo}) · ${stats.segmentSpeedKmh}km/h`;
     if (elTrafficDot) {
@@ -494,9 +559,27 @@ async function initApp() {
   function selectCity(cityId, { teleport = true, syncMap = true } = {}) {
     const region = getCityRegion(cityId);
     activeCity = region.id;
+    const isMuseum = activeCity === 'museum';
     document.body.dataset.city = activeCity;
+    document.body.dataset.walkOnly = isMuseum ? 'true' : 'false';
+
+    // Configure indoor walk-only environment BEFORE teleporting or switching modes
+    if (isMuseum) {
+      controllerManager.setIndoorEnvironment({
+        bounds: MUSEUM_BOUNDS,
+        floorY: MUSEUM_BOUNDS.floorY,
+        colliders: museumInterior.colliders,
+        allowedModes: getAllowedModesForCity('museum'),
+        walkMaxSpeed: 4.6
+      });
+      cameraSystem.setIndoorBounds(MUSEUM_BOUNDS);
+    } else {
+      controllerManager.setIndoorEnvironment(null);
+      cameraSystem.setIndoorBounds(null);
+    }
+
     applyWorldCityVisibility(activeCity);
-    if (streetDetails.setCity) streetDetails.setCity(activeCity);
+    if (!isMuseum && streetDetails.setCity) streetDetails.setCity(activeCity);
 
     cityButtons.forEach((btn) => {
       const isActive = btn.getAttribute('data-city') === activeCity;
@@ -511,17 +594,24 @@ async function initApp() {
       elMinimapCard.title = `${region.name} 전체 지도 열기 [M]`;
     }
     if (elTrafficInfo) {
-      elTrafficInfo.title = `${region.trafficCorridor} 실시간 교통 밀도 및 정체 수준`;
+      elTrafficInfo.title = `${region.trafficCorridor} 실시간 안내`;
     }
     if (tpSwitchCityBtn) {
-      const nextRegion = getCityRegion(activeCity === 'sejong' ? 'seoul' : 'sejong');
+      const nextId = activeCity === 'sejong' ? 'seoul' : (activeCity === 'seoul' ? 'museum' : 'sejong');
+      const nextRegion = getCityRegion(nextId);
       const nameEl = tpSwitchCityBtn.querySelector('.pop-name');
       const subEl = tpSwitchCityBtn.querySelector('.pop-sub');
-      if (nameEl) nameEl.textContent = `${nextRegion.shortName} 랜드마크로 전환 →`;
+      if (nameEl) nameEl.textContent = `${nextRegion.shortName}로 전환 →`;
       if (subEl) subEl.textContent = nextRegion.trafficCorridor;
     }
 
-    updateVehicleLabelsForCity(activeCity);
+    // Strictly enforce walk-only mode in the National Museum of Korea
+    if (isMuseum) {
+      selectMode('person');
+    } else {
+      updateVehicleLabelsForCity(activeCity);
+      renderControlHints(controllerManager.activeMode);
+    }
 
     const activePreset = cameraSystem.getActivePreset();
     if (activePreset && activePreset.city && activePreset.city !== 'all' && activePreset.city !== activeCity) {
@@ -561,8 +651,21 @@ async function initApp() {
     if (trafficSystem?.setTimeOfDay) {
       trafficSystem.setTimeOfDay(timeId);
     }
-    if (weatherSystem) {
-      weatherSystem.applyWeather(weatherSystem.getWeather(), timeId);
+    if (activeCity === 'museum') {
+      if (weatherSystem) {
+        if (weatherSystem.uLensRainIntensity) weatherSystem.uLensRainIntensity.value = 0;
+        if (weatherSystem.uScreenFogDensity) weatherSystem.uScreenFogDensity.value = 0;
+        if (weatherSystem.uScreenFogShift) weatherSystem.uScreenFogShift.value = 0;
+        if (weatherSystem.uSurfaceRippleIntensity) weatherSystem.uSurfaceRippleIntensity.value = 0;
+        if (weatherSystem.uWeatherContrastShift) weatherSystem.uWeatherContrastShift.value = 0;
+        if (weatherSystem.uWeatherSaturationShift) weatherSystem.uWeatherSaturationShift.value = 0;
+        if (weatherSystem.uLightningIntensity) weatherSystem.uLightningIntensity.value = 0;
+      }
+      museumInterior.setTimeOfDay(timeId);
+    } else {
+      if (weatherSystem) {
+        weatherSystem.applyWeather(weatherSystem.getWeather(), timeId);
+      }
     }
     if (sejongLighting) {
       const sejongState = sejongLighting.setTimeOfDay(timeId);
@@ -785,7 +888,7 @@ async function initApp() {
 
   if (tpSwitchCityBtn) {
     tpSwitchCityBtn.addEventListener('click', () => {
-      const nextCity = activeCity === 'sejong' ? 'seoul' : 'sejong';
+      const nextCity = activeCity === 'sejong' ? 'seoul' : (activeCity === 'seoul' ? 'museum' : 'sejong');
       selectCity(nextCity, { teleport: true, syncMap: true });
       closePopovers();
     });
@@ -810,13 +913,13 @@ async function initApp() {
         selectMode('person');
         break;
       case 'Digit2':
-        selectMode('car');
+        if (activeCity !== 'museum') selectMode('car');
         break;
       case 'Digit3':
-        selectMode('cyclist');
+        if (activeCity !== 'museum') selectMode('cyclist');
         break;
       case 'Digit4':
-        selectMode('helicopter');
+        if (activeCity !== 'museum') selectMode('helicopter');
         break;
       case 'Digit5':
         selectCamera('chase', true);
@@ -828,13 +931,13 @@ async function initApp() {
         selectCamera('pov', true);
         break;
       case 'Digit8':
-        selectCamera(activeCity === 'sejong' ? 'sejongComplex' : 'fifthAve', true);
+        selectCamera(activeCity === 'sejong' ? 'sejongComplex' : (activeCity === 'museum' ? 'museumAtrium' : 'fifthAve'), true);
         break;
       case 'Digit9':
-        selectCamera(activeCity === 'sejong' ? 'centralPark' : 'timesSquare', true);
+        selectCamera(activeCity === 'sejong' ? 'centralPark' : (activeCity === 'museum' ? 'museumPagoda' : 'timesSquare'), true);
         break;
       case 'Digit0':
-        selectCamera(activeCity === 'sejong' ? 'sejongGovTower' : 'chryslerGCT', true);
+        selectCamera(activeCity === 'sejong' ? 'sejongGovTower' : (activeCity === 'museum' ? 'museumContemplation' : 'chryslerGCT'), true);
         break;
       case 'KeyV':
         cycleCamera(e.shiftKey ? -1 : 1);
@@ -846,7 +949,9 @@ async function initApp() {
         if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) audioSystem.setEnabled(!audioSystem.enabled);
         break;
       case 'KeyB':
-        if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey && !mapSystem.isFullMapOpen) audioSystem.honk(controllerManager.getActiveEntity());
+        if (activeCity !== 'museum' && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey && !mapSystem.isFullMapOpen) {
+          audioSystem.honk(controllerManager.getActiveEntity());
+        }
         break;
     }
   });
@@ -969,12 +1074,12 @@ async function initApp() {
   function afterSoftwareDraw(cb) {
     const gl = renderer.backend?.gl || renderer.domElement?.getContext('webgl2');
     if (!gl || typeof gl.fenceSync !== 'function' || typeof gl.clientWaitSync !== 'function') {
-      setTimeout(cb, 80);
+      setTimeout(cb, 160);
       return;
     }
     const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     if (!sync) {
-      setTimeout(cb, 80);
+      setTimeout(cb, 160);
       return;
     }
     gl.flush();
@@ -982,13 +1087,13 @@ async function initApp() {
     const poll = () => {
       const status = gl.clientWaitSync(sync, gl.SYNC_FLUSH_COMMANDS_BIT, 0);
       if (status === gl.TIMEOUT_EXPIRED && performance.now() < deadline) {
-        setTimeout(poll, 16);
+        setTimeout(poll, 24);
       } else {
         gl.deleteSync(sync);
-        setTimeout(cb, 80);
+        setTimeout(cb, 160);
       }
     };
-    setTimeout(poll, 16);
+    setTimeout(poll, 24);
   }
 
   function tick(now) {
@@ -1002,35 +1107,42 @@ async function initApp() {
     gamepadControls.update(dt);
     controllerManager.update(dt, elapsed, cameraSystem.initialized ? cameraSystem.currentPos : null);
     cameraSystem.update(dt, elapsed);
-    streetDetails.signalClock.value = elapsed;
-    const changedTrafficSegments = trafficSystem.update(
-      dt,
-      elapsed,
-      cameraSystem.currentPos,
-      controllerManager.getActiveEntity(),
-      controllerManager.activeMode,
-      cameraSystem.camera,
-      lightingSystem.activePresetId,
-      wallDt
-    );
-    if (changedTrafficSegments && changedTrafficSegments.length > 0) {
-      updateTrafficHud();
+    const inMuseum = activeCity === 'museum';
+    if (inMuseum) {
+      museumInterior.update(dt, elapsed);
+    } else {
+      streetDetails.signalClock.value = elapsed;
+      const changedTrafficSegments = trafficSystem.update(
+        dt,
+        elapsed,
+        cameraSystem.currentPos,
+        controllerManager.getActiveEntity(),
+        controllerManager.activeMode,
+        cameraSystem.camera,
+        lightingSystem.activePresetId,
+        wallDt
+      );
+      if (changedTrafficSegments && changedTrafficSegments.length > 0) {
+        updateTrafficHud();
+      }
+      highwayTraffic.update(dt, cameraSystem.camera, controllerManager.getActiveEntity(), controllerManager.activeMode);
+      if (boroughs.update) boroughs.update(elapsed); // Roosevelt Island Tramway cabins
+      cityBlocks.update(cameraSystem.currentPos.x, cameraSystem.currentPos.z);
+      if (cityBlocks.updateLights) cityBlocks.updateLights(cameraSystem.camera);
+      if (streetDetails.update) streetDetails.update(cameraSystem.camera);
+      lightingSystem.update(cameraSystem.currentPos);
+      if (sejongLighting) sejongLighting.update(dt, elapsed);
+      weatherSystem.update(dt, elapsed, cameraSystem.camera, cameraSystem.currentPos, lightingSystem.activePresetId);
+      if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
     }
-    highwayTraffic.update(dt, cameraSystem.camera, controllerManager.getActiveEntity(), controllerManager.activeMode);
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();
       nextPlayerSave = now + 5000;
     }
-    if (boroughs.update) boroughs.update(elapsed); // Roosevelt Island Tramway cabins
-    cityBlocks.update(cameraSystem.currentPos.x, cameraSystem.currentPos.z);
-    if (cityBlocks.updateLights) cityBlocks.updateLights(cameraSystem.camera);
-    if (streetDetails.update) streetDetails.update(cameraSystem.camera);
-    lightingSystem.update(cameraSystem.currentPos);
-    if (sejongLighting) sejongLighting.update(dt, elapsed);
-    weatherSystem.update(dt, elapsed, cameraSystem.camera, cameraSystem.currentPos, lightingSystem.activePresetId);
     mapSystem.update();
-    audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
-    if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
+    if (!inMuseum) {
+      audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.activePresetId === 'midnight');
+    }
     // Traffic collisions can move the player after controller updates; finalize moving hierarchies here.
     for (const root of dynamicRoots) root.updateMatrixWorld();
 
@@ -1106,7 +1218,8 @@ async function initApp() {
         elFps.className = currentFps >= 50 ? 'fps-ok' : currentFps >= 30 ? 'fps-warn' : 'fps-bad';
       }
       if (elSpeed) elSpeed.textContent = String(kmh);
-      if (elSpeedMeter) elSpeedMeter.style.transform = `scaleX(${Math.min(1, kmh / (topSpeedKmh[mode] || 130))})`;
+      const speedCap = activeCity === 'museum' ? 18 : (topSpeedKmh[mode] || 130);
+      if (elSpeedMeter) elSpeedMeter.style.transform = `scaleX(${Math.min(1, kmh / speedCap)})`;
       if (elAltitude) elAltitude.textContent = altM.toLocaleString('ko-KR');
       updateTrafficHud();
       // The street corner of the player on the follow cameras, of the camera itself on the scenic ones

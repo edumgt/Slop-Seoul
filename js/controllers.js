@@ -195,6 +195,8 @@ class ThirdPersonControllerManager {
     this.colliders = colliders;
     this._colliderCells = null; // built on first use, see nearColliders()
     this.activeMode = 'car'; // 'person' | 'car' | 'cyclist' | 'helicopter'
+    this.allowedModes = ['person', 'car', 'cyclist', 'helicopter'];
+    this.indoorEnv = null;
 
     this.keys = {
       forward: false,
@@ -321,7 +323,34 @@ class ThirdPersonControllerManager {
     for (const action of Object.keys(this.keys)) this.keys[action] = false;
   }
 
+  setIndoorEnvironment(env = null) {
+    this.indoorEnv = env || null;
+    this.allowedModes = env?.allowedModes?.length
+      ? [...env.allowedModes]
+      : ['person', 'car', 'cyclist', 'helicopter'];
+    if (!this.allowedModes.includes(this.activeMode)) {
+      this.setMode(this.allowedModes[0]);
+    }
+    for (const [mode, ent] of Object.entries(this.entities)) {
+      const allowed = this.allowedModes.includes(mode);
+      if (!allowed) {
+        if (ent.mesh) ent.mesh.visible = false;
+        if (ent.helmet) ent.helmet.visible = false;
+        if (ent.headLights) for (const spot of ent.headLights) spot.intensity = 0;
+        if (ent.headLight) ent.headLight.intensity = 0;
+      } else if (mode === this.activeMode) {
+        if (ent.mesh) ent.mesh.visible = true;
+        if (ent.helmet) ent.helmet.visible = true;
+      } else if (!this.indoorEnv && ent.mesh) {
+        ent.mesh.visible = true;
+      }
+    }
+  }
+
   setMode(mode) {
+    if (Array.isArray(this.allowedModes) && !this.allowedModes.includes(mode)) {
+      mode = this.allowedModes[0];
+    }
     if (!this.entities[mode]) return;
     this.activeMode = mode;
     const active = this.entities[mode];
@@ -400,13 +429,20 @@ class ThirdPersonControllerManager {
     const entity = this.getActiveEntity();
     // Conservative body cylinders, including the taxi's corners, bicycle wheels and helicopter tail/rotor.
     const body = { person: [0.48, 1.9], car: [2.4, 1.9], cyclist: [1.0, 1.9], helicopter: [6.2, 3.2] };
-    const others = Object.values(this.entities).filter(e => e !== entity).map(e => ({
+    const others = this.indoorEnv ? [] : Object.values(this.entities).filter(e => e !== entity).map(e => ({
       x: e.position.x, z: e.position.z, radius: body[e.type][0],
       bottom: e.position.y - (e.type === 'helicopter' ? 0.7 : 0), top: e.position.y + body[e.type][1]
     }));
     const cameraBack = Math.cos(0.09) * entity.chaseDistance;
     const cameraUp = entity.chaseHeight + Math.sin(0.09) * entity.chaseDistance * 0.85;
     const clampPoint = (px, pz) => {
+      if (this.indoorEnv?.bounds) {
+        const b = this.indoorEnv.bounds;
+        return {
+          x: Math.max(b.minX + radius, Math.min(b.maxX - radius, px)),
+          z: Math.max(b.minZ + radius, Math.min(b.maxZ - radius, pz))
+        };
+      }
       pz = Math.max(ISLAND_BOUNDS.minZ + (heli ? -6000 : 30), Math.min(ISLAND_BOUNDS.maxZ + margin, pz));
       px = Math.max(ISLAND_BOUNDS.minX - margin, Math.min(ISLAND_BOUNDS.maxX + margin, px));
       if (!heli && getIslandBoundsAtZ) {
@@ -858,6 +894,9 @@ class ThirdPersonControllerManager {
   }
 
   getGroundHeight(x, z, mode = 'person') {
+    if (this.indoorEnv) {
+      return Number.isFinite(this.indoorEnv.floorY) ? this.indoorEnv.floorY : 0.0;
+    }
     // Inside Central Park (5th Ave to Central Park West, 59th St to 110th St)
     const cp = CENTRAL_PARK_BOUNDS;
     if (x > cp.minX && x < cp.maxX && z > cp.minZ && z < cp.maxZ) {
@@ -876,6 +915,9 @@ class ThirdPersonControllerManager {
 
   // Static colliders within `r` of (x, z), kept in their original order and indexed once into 48 m cells.
   nearColliders(x, z, r) {
+    if (this.indoorEnv?.colliders) {
+      return this.indoorEnv.colliders;
+    }
     const CELL = 48;
     const key = (ix, iz) => (ix + 4096) * 8192 + (iz + 4096);
     if (!this._colliderCells) {
@@ -913,23 +955,30 @@ class ThirdPersonControllerManager {
   }
 
   resolveHorizontalCollision(pos, radius, carEntity = null, entity = carEntity) {
-    // The detailed island (the helicopter may roam out over the harbour & the boroughs)
-    const heli = this.activeMode === 'helicopter';
-    const m = heli ? 6000 : 0;
-    pos.x = Math.max(ISLAND_BOUNDS.minX - m, Math.min(ISLAND_BOUNDS.maxX + m, pos.x));
-    pos.z = Math.max(ISLAND_BOUNDS.minZ + (heli ? -6000 : 30), Math.min(ISLAND_BOUNDS.maxZ + m, pos.z));
-    if (this.activeMode !== 'helicopter' && getIslandBoundsAtZ) {
-      const shore = getIslandBoundsAtZ(pos.z);
-      const minShoreX = shore.westX + 8.0;
-      const maxShoreX = shore.eastX - 8.0;
-      if (pos.x < minShoreX) {
-        pos.x = minShoreX;
-        if (carEntity && carEntity.speed) carEntity.speed *= 0.4;
-      } else if (pos.x > maxShoreX) {
-        pos.x = maxShoreX;
-        if (carEntity && carEntity.speed) carEntity.speed *= 0.4;
+    if (this.indoorEnv?.bounds) {
+      const b = this.indoorEnv.bounds;
+      pos.x = Math.max(b.minX + radius, Math.min(b.maxX - radius, pos.x));
+      pos.z = Math.max(b.minZ + radius, Math.min(b.maxZ - radius, pos.z));
+    } else {
+      // The detailed island (the helicopter may roam out over the harbour & the boroughs)
+      const heli = this.activeMode === 'helicopter';
+      const m = heli ? 6000 : 0;
+      pos.x = Math.max(ISLAND_BOUNDS.minX - m, Math.min(ISLAND_BOUNDS.maxX + m, pos.x));
+      pos.z = Math.max(ISLAND_BOUNDS.minZ + (heli ? -6000 : 30), Math.min(ISLAND_BOUNDS.maxZ + m, pos.z));
+      if (this.activeMode !== 'helicopter' && getIslandBoundsAtZ) {
+        const shore = getIslandBoundsAtZ(pos.z);
+        const minShoreX = shore.westX + 8.0;
+        const maxShoreX = shore.eastX - 8.0;
+        if (pos.x < minShoreX) {
+          pos.x = minShoreX;
+          if (carEntity && carEntity.speed) carEntity.speed *= 0.4;
+        } else if (pos.x > maxShoreX) {
+          pos.x = maxShoreX;
+          if (carEntity && carEntity.speed) carEntity.speed *= 0.4;
+        }
       }
     }
+    const heli = this.activeMode === 'helicopter';
 
     const body = collisionBody(this.activeMode, radius, carEntity ? carEntity.heading : 0);
     const { sin: sinH, cos: cosH, extX, extZ } = body;
@@ -1031,7 +1080,7 @@ class ThirdPersonControllerManager {
     }
 
     const b = this.entities.cyclist;
-    if (b) {
+    if (b && (!Array.isArray(this.allowedModes) || this.allowedModes.includes('cyclist'))) {
       const dx = focus ? b.position.x - focus.x : 0;
       const dz = focus ? b.position.z - focus.z : 0;
       if (this.activeMode === 'cyclist' || dx * dx + dz * dz <= maxDistSq) {
@@ -1125,7 +1174,7 @@ class ThirdPersonControllerManager {
 
   updatePerson(dt) {
     const p = this.entities.person;
-    const maxSpeed = 8.2;
+    const maxSpeed = this.indoorEnv?.walkMaxSpeed || 8.2;
     const turnRate = 2.6;
 
     let targetSpeed = 0;

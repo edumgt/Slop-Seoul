@@ -25,7 +25,11 @@ import {
   EAST_RIVER_BRIDGES,
   OUTER_BRIDGES,
   getLocationLabel,
-  isTypingInField
+  isTypingInField,
+  MUSEUM_ORIGIN,
+  MUSEUM_HALL,
+  MUSEUM_EXHIBITS,
+  COLONNADE_ZS
 } from './city-config.js';
 
 // Minimap and full-screen map drawn from the same geography and building footprints as the 3D city.
@@ -34,7 +38,7 @@ import {
 
 const FONT = 'Pretendard, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 const MIN_ZOOM = 0.015; // full map, pixels per metre: the whole harbour, Staten Island to the Bronx
-const MAX_ZOOM = 3.0; // single lots
+const MAX_ZOOM = 12.0; // single lots & museum interior floorplan
 const RADAR_SCALE = 0.32; // radar pixels per metre on the ground (zooms out with altitude)
 const GRID_BEARING = (GEO.frame && GEO.frame.bearingDeg) || 29.02; // Manhattan's grid north, degrees east of true north
 
@@ -92,6 +96,18 @@ const DEFAULT_CITY_VIEWS = {
     placeholder: '테헤란로, 강남대로, 포스코센터, 코엑스 검색…',
     center: { x: 80, z: 120, zoom: 0.28 },
     mapBounds: { minX: -1150, maxX: 1250, minZ: -1450, maxZ: 5600 }
+  },
+  museum: {
+    id: 'museum',
+    name: '국립중앙박물관 실내',
+    placeholder: '경천사지 십층석탑, 사유의 방, 신라 금관, 고려 청자 검색…',
+    center: { x: (MUSEUM_ORIGIN || { x: 24000, z: 0 }).x, z: (MUSEUM_ORIGIN || { x: 24000, z: 0 }).z, zoom: 5.2 },
+    mapBounds: {
+      minX: (MUSEUM_ORIGIN || { x: 24000, z: 0 }).x - 28,
+      maxX: (MUSEUM_ORIGIN || { x: 24000, z: 0 }).x + 28,
+      minZ: (MUSEUM_ORIGIN || { x: 24000, z: 0 }).z - 74,
+      maxZ: (MUSEUM_ORIGIN || { x: 24000, z: 0 }).z + 74
+    }
   }
 };
 
@@ -540,16 +556,24 @@ class NYCMapSystem {
   }
 
   setActiveCity(cityId, focusMap = true) {
-    this.activeCity = cityId === 'seoul' ? 'seoul' : 'sejong';
+    this.activeCity = cityId === 'seoul' ? 'seoul' : (cityId === 'museum' ? 'museum' : 'sejong');
     const cfg = DEFAULT_CITY_VIEWS[this.activeCity];
     this.cityButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-map-city') === this.activeCity);
     });
     if (this.elSearchInput) this.elSearchInput.placeholder = cfg.placeholder;
-    if (this.elMapTitle) this.elMapTitle.textContent = `${cfg.name} 스트리트 아틀라스`;
+    if (this.elMapTitle) {
+      this.elMapTitle.textContent = this.activeCity === 'museum'
+        ? `${cfg.name} 관람 안내도 (도보 전용)`
+        : `${cfg.name} 스트리트 아틀라스`;
+    }
     if (this.elCounts) {
-      const roadCount = ROAD_NAME_COUNT_BY_CITY[this.activeCity] || 0;
-      this.elCounts.textContent = `${roadCount}개 도로 · ${BLOCKS.length.toLocaleString('en-US')} 블록`;
+      if (this.activeCity === 'museum') {
+        this.elCounts.textContent = `${MUSEUM_EXHIBITS.length}점 국보·보물 · 실내 도보 전용`;
+      } else {
+        const roadCount = ROAD_NAME_COUNT_BY_CITY[this.activeCity] || 0;
+        this.elCounts.textContent = `${roadCount}개 도로 · ${BLOCKS.length.toLocaleString('en-US')} 블록`;
+      }
     }
     if (this.elViewAllBtn) this.elViewAllBtn.title = `${cfg.name} 전역 보기`;
     this.miniCache = null;
@@ -557,7 +581,9 @@ class NYCMapSystem {
     this.fullStaticKey = '';
     this.playerInfoText = '';
 
-    const defaultLmId = this.activeCity === 'seoul' ? 'esb' : 'sejong_complex';
+    const defaultLmId = this.activeCity === 'seoul'
+      ? 'esb'
+      : (this.activeCity === 'museum' ? 'museum_gyeongcheonsa_pagoda' : 'sejong_complex');
     const defaultLm = NYC_LANDMARKS.find((l) => l.id === defaultLmId && (!l.city || l.city === this.activeCity));
     if (defaultLm) {
       this.waypoint = { x: defaultLm.x, z: defaultLm.z, name: defaultLm.name };
@@ -847,7 +873,70 @@ class NYCMapSystem {
    * The ground: land & water, Manhattan with its piers, parkland, blocks, Central Park, building footprints, landmark
    * lots, the main streets at low zoom, shore highways, bridges and the search highlight (world transform of view v)
    */
+  drawMuseumFloorplan(ctx, v) {
+    const px = (n) => n / v.s;
+    v.world(ctx);
+    const ox = MUSEUM_ORIGIN.x;
+    const oz = MUSEUM_ORIGIN.z;
+    const hw = MUSEUM_HALL.halfWidth;
+    const hl = MUSEUM_HALL.halfLength;
+
+    // Outer museum hall stone footprint
+    ctx.fillStyle = '#1e1b18';
+    ctx.strokeStyle = '#d4a853';
+    ctx.lineWidth = px(2.0);
+    ctx.fillRect(ox - hw, oz - hl, hw * 2, hl * 2);
+    ctx.strokeRect(ox - hw, oz - hl, hw * 2, hl * 2);
+
+    // Central Path of History nave runner
+    ctx.fillStyle = '#292521';
+    ctx.fillRect(ox - 9.0, oz - hl + 2, 18.0, hl * 2 - 4);
+    ctx.strokeStyle = 'rgba(212, 168, 83, 0.32)';
+    ctx.lineWidth = px(1.2);
+    ctx.strokeRect(ox - 9.0, oz - hl + 2, 18.0, hl * 2 - 4);
+
+    // Room of Quiet Contemplation (East Sanctuary)
+    ctx.fillStyle = '#141214';
+    ctx.strokeStyle = '#c9a050';
+    ctx.lineWidth = px(1.5);
+    ctx.fillRect(ox + 11.1, oz - 13.2, 11.8, 26.4);
+    ctx.strokeRect(ox + 11.1, oz - 13.2, 11.8, 26.4);
+    // Clear doorway indicator on West wall of Contemplation Room
+    ctx.fillStyle = '#292521';
+    ctx.fillRect(ox + 10.7, oz - 3.4, 0.9, 6.8);
+
+    // Ten-Story Pagoda plinth footprint
+    ctx.fillStyle = '#3c352d';
+    ctx.strokeStyle = '#f0cf85';
+    ctx.lineWidth = px(1.6);
+    ctx.fillRect(ox - 4.1, oz - 44.1, 8.2, 8.2);
+    ctx.strokeRect(ox - 4.1, oz - 44.1, 8.2, 8.2);
+
+    // Monumental colonnade piers
+    ctx.fillStyle = '#5a5248';
+    for (const lz of COLONNADE_ZS) {
+      ctx.fillRect(ox - 10.9, oz + lz - 0.7, 1.4, 1.4);
+      if (lz !== -4 && lz !== 12) {
+        ctx.fillRect(ox + 9.5, oz + lz - 0.7, 1.4, 1.4);
+      }
+    }
+
+    // Display vitrines
+    ctx.fillStyle = '#36454f';
+    ctx.strokeStyle = '#8ec7d8';
+    ctx.lineWidth = px(1.1);
+    for (const ex of MUSEUM_EXHIBITS) {
+      if (ex.kind === 'pagoda' || ex.kind === 'bodhisattva') continue;
+      ctx.fillRect(ox + ex.lx - 1.1, oz + ex.lz - 1.1, 2.2, 2.2);
+      ctx.strokeRect(ox + ex.lx - 1.1, oz + ex.lz - 1.1, 2.2, 2.2);
+    }
+  }
+
   drawWorld(ctx, v, isMinimap) {
+    if (this.activeCity === 'museum') {
+      this.drawMuseumFloorplan(ctx, v);
+      return;
+    }
     const L = mapLayers();
     const s = v.s;
     const px = (n) => n / s; // screen pixels -> metres (line widths)
@@ -1067,9 +1156,11 @@ class NYCMapSystem {
     const ent = this.controllerManager.getActiveEntity();
     const px = ent.position.x;
     const pz = ent.position.z;
-    // Ground-level radar shows ~800 m of the city; it zooms out as the camera climbs (helicopter)
-    const target = Math.max(0.05, RADAR_SCALE / (1 + Math.max(0, ent.position.y - 25) / 180));
-    this.miniScale += (target - this.miniScale) * 0.08;
+    // Ground-level radar shows ~800 m of the city, or crisp indoor floorplan inside the National Museum of Korea
+    const target = this.activeCity === 'museum'
+      ? 2.2
+      : Math.max(0.05, RADAR_SCALE / (1 + Math.max(0, ent.position.y - 25) / 180));
+    this.miniScale += (target - this.miniScale) * (this.activeCity === 'museum' ? 0.35 : 0.08);
     const scale = this.miniScale;
 
     if (this.elMiniStreet) {

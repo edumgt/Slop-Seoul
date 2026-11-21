@@ -87,9 +87,10 @@ test('GNB is relocated into vertical LNB (.hud-left / .toolbar-lnb) with right-o
 });
 
 test('Sejong and Seoul regions cleanly partition landmarks, teleports, coordinates, and fallback labels', () => {
-  assert.deepEqual(Object.keys(CITY_REGIONS).sort(), ['sejong', 'seoul']);
+  assert.deepEqual(Object.keys(CITY_REGIONS).sort(), ['museum', 'sejong', 'seoul']);
   assert.equal(getCityRegion('unknown').id, 'sejong');
   assert.equal(getCityRegion('seoul').id, 'seoul');
+  assert.equal(getCityRegion('museum').id, 'museum');
 
   assert.equal(inferCityFromCoords(159, -1204), 'sejong');
   assert.equal(inferCityFromCoords(469, 4799), 'sejong');

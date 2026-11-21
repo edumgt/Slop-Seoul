@@ -1,125 +1,171 @@
-# Slop Seoul · 테헤란로 (Teheran-ro)
+# Slop Korea · Sejong City, Seoul Teheran-ro & National Museum of Korea
 
-> **[mrdoob/slop-newyork](https://github.com/mrdoob/slop-newyork)** 소스를 기반으로, 대한민국 서울의 대표적인 금융·IT 밸리이자 마천루 중심축인 **강남 테헤란로(Teheran-ro)** 거리와 스카이라인을 3D 실시간 그래픽스로 구현한 인터랙티브 도심 시뮬레이션입니다.
+<p align="center">
+  <a href="#english"><strong>English</strong></a> &nbsp;|&nbsp;
+  <a href="#한국어"><strong>한국어 (Korean)</strong></a> &nbsp;|&nbsp;
+  <a href="README.ko.md"><strong>한국어 단독 문서 (README.ko.md)</strong></a>
+</p>
 
-[three.js](https://threejs.org/)의 **WebGPURenderer**와 **TSL(Three Shading Language)**(WebGL2 폴백 지원)을 활용하여, 11만 개 이상의 빌딩이 밀집된 거대 도심을 웹 브라우저에서 60 FPS로 탐험할 수 있습니다.
-
----
-
-## 🏙️ 서울 테헤란로 거리 묘사 및 구현 특징 (Features)
-
-본 프로젝트는 뉴욕 맨해튼 격자망 및 건축물 엔진을 서울 강남 테헤란로의 실제 도로 체계, 랜드마크, 상권 및 대중교통 인프라에 맞춰 고도화했습니다.
-
-### 1. 테헤란로 중심 도로망 및 격자 체계
-* **주요 간선도로 축**:
-  * **테헤란로 (Teheran-ro)**: 강남역에서 역삼역, 선릉역, 삼성역(영동대로)까지 이어지는 대한민국 대표 비즈니스·테크웨이
-  * **강남대로 (Gangnam-daero · 강남역)**: 서초와 강남을 잇는 최대 번화가
-  * **논현로 (Nonhyeon-ro · 역삼역)** / **언주로 (Eonju-ro · 테헤란로 중심)**
-  * **선릉로 (Seolleung-ro · 선릉역)**: 선정릉 도심 문화재 권역과 연결되는 금융·상업 축
-  * **삼성로 (Samseong-ro · 포스코사거리)**: 포스코센터 및 대치동 학원가 연계 도로
-  * **영동대로 (Yeongdong-daero · 삼성역 & 코엑스)**: 코엑스 및 MICE 특구 광폭 대로
-  * 도산대로, 역삼로, 선릉북로, 테헤란로 IT타운길, 탄천동로, 올림픽로 등 주변 도로망 유기적 연결
-
-### 2. 강남 주요 랜드마크 및 빌딩 숲
-* **강남파이낸스센터 (GFC)**: 역삼역의 상징적인 초고층 오피스 타워
-* **한국종합무역센터 (Trade Tower)**: 삼성동 코엑스를 대표하는 고유의 스텝 형태 마천루
-* **코엑스 (COEX) & K-POP 스퀘어**: 초대형 곡면 옥외 전광판 미디어 아트
-* **파르나스타워 (Parnas Tower)**: 삼성역 인터컨티넨탈 호텔 권역의 현대적 초고층 빌딩
-* **강남역 GT타워 (GT Tower)**: 유려한 파도형 곡면 글래스 파사드
-* **포스코센터 (POSCO Center)**: 포스코사거리의 철강·금융 본산
-* **선정릉 (선릉·정릉)**: 강남 한복판의 세계문화유산 도심 왕릉 숲 공원 및 봉은사
-
-### 3. 실사 기반 거리 디테일 (Street Details & Photographic Storefronts)
-* **실제 한국 도로명 표지판**:
-  * 파란색 규격 바탕의 한글·영문 병기 도로명판 (`테헤란로 · Teheran-ro`, `강남대로`, `영동대로` 등)
-* **서울 지하철 2호선 인프라**:
-  * 역 출입구 및 초록색 순환선 폴사인 (`② 강남역`, `② 역삼역`, `② 선릉역`, `② 삼성역`)
-* **실제 상가 브랜드 고해상도 포토 텍스처 (Storefront Atlas)**:
-  * 1층 보행자 눈높이에 실제 테헤란로 주요 프랜차이즈 상가 실사 텍스처 적용
-  * **스타벅스 테헤란로점 (Starbucks Coffee)**
-  * **올리브영 강남타운점 (Olive Young)**
-  * **파리바게뜨 (Paris Baguette)**
-  * **투썸플레이스 (A Twosome Place)**
-  * **GS25 24시 편의점**
-  * 강남 온누리 약국, 강남 메디컬 약국, 강남 원조 분식 등 실감 나는 한국식 간판
-  * 야간 시간대 브랜드 고유 조명색(스타벅스 에메랄드, 올리브영 라임, GS25 블루 등) 발광(Emissive) 표현
-* **코엑스 & 영동대로 미디어 스퀘어 전광판**:
-  * 실시간 테헤란로 교통정보 및 날씨 안내 (YTN 뉴스 24 스타일)
-  * K-POP 스퀘어 미디어 파사드 및 디지털 사이니지 애니메이션
-
-### 4. 서울 대중교통 및 이동 수단 (Vehicles)
-1. **도보 (Foot, 1)**: 보도블록, 횡단보도, 지하철역 출입구를 걸으며 눈높이에서 테헤란로 체험
-2. **서울 택시 (Seoul Taxi, 2)**:
-   * 서울 특유의 꽃담황토색(주황) 차체, '31바 4820' 서울 번호판, '서울택시' 캡 라이트 탑재
-3. **따릉이 (Seoul Public Bike, 3)**:
-   * 서울시 공공자전거 특유의 화이트/그린 프레임
-4. **헬리콥터 (Helicopter, 4)**:
-   * 테헤란로 빌딩 숲과 멀리 한강, 잠실 롯데월드타워 방면까지 조망하는 항공 뷰
-* **실제 노선 기반 서울 버스 트래픽**:
-  * 파란색 간선버스 (360번: 송파 ↔ 강남역, 740번: 공덕역 ↔ 삼성역, 146번: 노원 ↔ 역삼역, 341번)
-  * 빨간색 광역버스 (9408번: 분당 ↔ 테헤란로, 9711번: 일산 ↔ 양재역)
-  * 초록색 지선/마을버스 (강남07번: 수서역 ↔ 코엑스)
-  * 심야 올빼미 버스 (N13번: 강남 ↔ 종로)
-
-### 5. 서울의 4대 시간대 및 분위기 (Atmosphere)
-* **노을 (Sunset)**: 빌딩 유리창에 반사되는 붉은 석양
-* **한낮 (Midday)**: 맑은 하늘 아래 투명한 테헤란로 도심 스카이라인
-* **매직아워 (Golden Hour)**: 도시의 빌딩 조명이 켜지기 시작하는 몽환적인 저녁빛
-* **야경 (Night)**: 수만 개 빌딩 창문과 네온사인, 자동차 헤드라이트/테일라이트가 수놓는 강남 불야성
-
-### 6. TSL 셰이더 기반 실시간 동적 날씨 시스템 (Dynamic Weather System)
-상단 HUD 툴바에서 4가지 날씨 상태를 실시간으로 전환할 수 있으며, 시간대 프리셋과 유기적으로 블렌딩됩니다:
-* **맑음 (Clear)**: 쾌청한 시야와 자연스러운 일조/스카이라이트
-* **안개 (Fog)**: 한강에서 밀려오는 짙은 도심 해무 (대기 포그 밀도 4.5배 증가, 지상 160m 해무 천장 및 원거리 스카이라인 묵직한 대기 원근감 연출)
-* **비 (Light Rain)**:
-  * TSL `SpriteNodeMaterial` 기반 최대 18,000개 빗줄기 인스턴스 파티클 렌더링
-  * 카메라 주변 3D 바운딩 박스 GPU 래핑 및 풍속/바람 기울기 연동
-  * 도로면 빗물 막(Wetness: 0.78) 및 수웅덩이 SSR(Screen Space Reflections) 활성화
-  * 아스팔트 바닥 빗방울 충돌 스플래시 파동(Ground Splash Ripple) 인스턴스 링 연출
-* **폭우 (Downpour)**:
-  * 최대 36,000개 빗줄기 파티클 + 2,800개 지상 수면 파문 링
-  * 시야를 가리는 폭우 안개 및 짙은 먹구름(Cloud Coverage: 98%), 태양광 감쇠
-  * 아스팔트 반사율 극대화 (Wetness: 1.0) 및 야간 도심 네온 반사 효과
-* **TSL 포스트 프로세싱 렌즈 물방울 & 스플래시 오버레이 (Screen-Space Lens Raindrops)**:
-  * '비' 또는 '폭우' 활성화 시 카메라 렌즈 표면에 맺히는 물방울, 미세 응결 비드, 중력 흘러내림(Trickle) 및 직격 충돌 파문(Splashes)을 TSL 셰이더로 실시간 시뮬레이션
-  * 구면 굴절 법선(Convex Lens Normal)을 통한 3D 도심 씬 광학 굴절 및 왜곡 디스플레이스먼트
-  * 내부 전반사(Fresnel Total Internal Reflection) 암부 메니스커스 림 및 하늘/도심 네온빛 스페큘러 글린트(Specular Bead Glint)
-  * '맑음' / '안개' 전환 시 렌즈 표면 물방울의 자연스러운 증발 및 페이드아웃 보간
-
-### 7. 테헤란로 실시간 교통 밀도 시스템 (Dynamic Traffic Congestion)
-시간대별 테헤란로 실제 통행량 패턴을 실시간으로 시뮬레이션:
-* **퇴근길 극심 정체 (노을)**: 최고 밀도 차량 72대, 평균 주행 속도 18 km/h, HUD 적색 경고 인디케이터
-* **원활한 주행 (한낮)**: 차량 42대, 시속 44 km/h 순항
-* **도심 야간 활주 (야경/심야)**: 야간 귀가 및 택시/올빼미 버스 위주 쾌적한 주행 (48 km/h)
-* 상단 HUD에 `테헤란로 정체 심각 (18km/h) · 72대` 등 실시간 교통 관측 텔레메트리 표시
+> Interactive 3D real-time web simulation built on **Three.js WebGPURenderer + TSL (Three Shading Language)** (with automatic WebGL2 fallback), featuring three distinct Korean environments: **Sejong Administrative City**, **Seoul Teheran-ro**, and a **Walk-Only Interior of the National Museum of Korea**.
+>
+> **Three.js WebGPURenderer + TSL** 기반으로 구현된 3D 실시간 인터랙티브 시뮬레이션입니다. **세종특별자치시(정부세종청사)**, **서울 테헤란로**, 그리고 **도보 관람 전용 국립중앙박물관 실내**를 하나의 웹 애플리케이션에서 자유롭게 탐험할 수 있습니다.
 
 ---
 
-## 🛠️ 기술 스택 (Tech Stack)
+## 📸 Key Screenshots / 주요 화면 캡처
 
-* **Rendering Engine**: [three.js](https://threejs.org/) (r187)
-  * `WebGPURenderer` (최신 WebGPU 지원 환경)
-  * `WebGL2Backend` (미지원 브라우저 자동 폴백 지원)
-  * `TSL (Three Shading Language)` 기반 절차적 셰이더 & 머티리얼 파이프라인
-* **Language & Runtime**: TypeScript, Node.js (v22+)
-* **Server**: Express (포트 3000, 정적 파일 서빙 및 API 프록시)
-* **Build & Dev Tooling**: Vite, tsx, Tailwind CSS
-* **Test Suite**: Node.js 내장 테스트 러너 (`node:test`, 236개 단위 테스트 100% 통과)
+| # | English Description | 한글 설명 |
+|:-:|:--------------------|:---------|
+| 1 | **Sejong City · Government Complex Sejong** — Continuous rooftop-garden ministry complex, elevated skybridges, automated day/night office lighting, LNB switcher, and live traffic segment gauge | **세종특별자치시 · 정부세종청사** — 연이어진 옥상정원 청사 건축물, 공중 연결브릿지, 시간대별 자동 조명 제어, 좌측 LNB 및 실시간 교통량 표시 |
+| 2 | **Seoul · Teheran-ro & Gangnam** — High-density skyline, Korean street signs, storefronts, Seoul transit vehicles, and dynamic road-segment congestion cycling | **서울특별시 · 테헤란로** — 강남 마천루 스카이라인, 한국 도로명 표지판, 상가 디테일, 서울 대중교통 및 구간별 교통 혼잡도 실시간 순환 |
+| 3 | **National Museum of Korea · Path of History (Walk-Only)** — Monumental granite & limestone atrium, colonnade, timber skylight louvers, display vitrines, and strictly enforced walk-only mode | **국립중앙박물관 · 역사의 길 (도보 전용)** — 화강암·석회암 대홀, 열주, 천창 루버, 국보 유물 진열장 및 차량/자전거/헬기가 차단된 실내 도보 전용 모드 |
+| 4 | **National Museum of Korea · Ten-Story Stone Pagoda of Gyeongcheonsa** — 13.5m multi-tier marble National Treasure centerpiece with architectural wash lighting | **국립중앙박물관 · 경천사지 십층석탑** — 13.5m 규모의 다층 대리석 석탑 조형물과 따뜻한 실내 건축 조명 연출 |
+| 5 | **National Museum of Korea · Room of Quiet Contemplation** — Darkened sanctuary chamber with starry pin-light ceiling and twin National Treasure Gilt-Bronze Pensive Bodhisattvas (NT 78 & 83) | **국립중앙박물관 · 사유의 방** — 어두운 명상 공간, 천장 별빛 핀조명, 국보 제78호·제83호 금동미륵보살반가사유상 쌍둥이 전시 연출 |
+
+### 1. Sejong City · Government Complex Sejong (`세종특별자치시 · 정부세종청사`)
+![Sejong City Government Complex](docs/screenshots/01-sejong-government-complex.png)
+
+### 2. Seoul · Teheran-ro & Gangnam (`서울특별시 · 테헤란로`)
+![Seoul Teheran-ro](docs/screenshots/02-seoul-teheran-ro.png)
+
+### 3. National Museum of Korea · Path of History — Walk-Only (`국립중앙박물관 · 역사의 길 도보 전용`)
+![National Museum of Korea Path of History](docs/screenshots/03-museum-path-of-history.png)
+
+### 4. National Museum of Korea · Ten-Story Stone Pagoda of Gyeongcheonsa (`국립중앙박물관 · 경천사지 십층석탑`)
+![Ten-Story Stone Pagoda of Gyeongcheonsa](docs/screenshots/04-museum-ten-story-pagoda.png)
+
+### 5. National Museum of Korea · Room of Quiet Contemplation (`국립중앙박물관 · 사유의 방`)
+![Room of Quiet Contemplation](docs/screenshots/05-museum-room-of-quiet-contemplation.png)
 
 ---
 
-## 🚀 로컬 실행 방법 (Getting Started)
+<a id="english"></a>
+# 🇬🇧 English Documentation
 
-### 사전 요구사항
-* Node.js v20 이상
-* 최신 크롬(Chrome), 엣지(Edge) 등 WebGPU 또는 WebGL2 지원 브라우저
+## ✨ Core Features
 
-### 설치 및 구동
+### 1. Three Isolated Interactive Environments (LNB Switcher)
+Switch seamlessly from the vertical **Left Navigation Bar (LNB)** or Full Map (`[M]`) between three completely separated environments with dedicated landmarks, camera presets, teleports, and maps:
+* **Sejong City (`세종시`)**:
+  * **Government Complex Sejong (`정부세종청사`)** with multi-wing horizontal terraced architecture, rooftop garden geometry, elevated pedestrian skybridges, and an **automated day/night lighting system** that switches between natural daylight facade reflection and warm evening/night office illumination.
+  * Iconic Sejong civic landmarks: **National Library of Sejong** (open-book curved roof), **Presidential Archives**, **Prime Minister's Office**, **Sejong City Hall** (circular civic arc), and **Sejong Lake Park**.
+  * Administrative road network: **Hannuri-daero (BRT)**, **Dasom-ro**, **Jeoljae-ro**, **Doum 3/6/8-ro**, **Galmae-ro**, and **Sicheong-daero**.
+* **Seoul Teheran-ro (`서울시`)**:
+  * Gangnam financial & tech corridor: **Teheran-ro**, **Gangnam-daero**, **Nonhyeon-ro**, **Eonju-ro**, **Seolleung-ro**, **Samseong-ro**, and **Yeongdong-daero**.
+  * Landmarks: **GFC (Gangnam Finance Center)**, **Trade Tower**, **COEX & K-POP Square**, **Parnas Tower**, **GT Tower**, **POSCO Center**, and **Seonjeongneung**.
+  * Real Korean road signs, **Seoul Subway Line 2** entrances, high-resolution photographic storefront textures (Starbucks, Olive Young, Paris Baguette, A Twosome Place, GS25), and Seoul buses/taxis/Ddareungi.
+* **National Museum of Korea Interior (`국립중앙박물관 실내` · Walk-Only)**:
+  * **Strict Walk-Only Enforcement**: Vehicles (`Car`, `Bicycle`, `Helicopter`) are locked out at both the controller and UI layers—disallowed buttons are hidden/disabled, hotkeys `2`/`3`/`4` and horn `B` are blocked, and outdoor traffic/weather are completely hidden indoors.
+  * **Architectural Zones**: Great Hall & South Lobby (`으뜸홀`), Path of History (`역사의 길`) with granite floor tiles, limestone ashlar walls, colonnade, mezzanine glass balconies, and timber skylight louvers, Ten-Story Stone Pagoda Atrium (`경천사지 십층석탑 광장`), and the darkened **Room of Quiet Contemplation (`사유의 방`)**.
+  * **National Treasure Exhibits**: Ten-Story Stone Pagoda of Gyeongcheonsa, Twin Gilt-Bronze Pensive Bodhisattvas (NT 78 & 83), Silla Gold Crown, Baekje Gilt-Bronze Incense Burner, Goryeo Inlaid Celadon Maebyeong, Joseon White Porcelain Moon Jar, Gilt-Bronze Standing Buddha, and Joseon Blue-and-White Porcelain Jar.
+  * **Indoor Navigation**: Calm strolling museum visitors, indoor AABB wall/vitrine collisions, indoor camera bounds clamping, 5 indoor teleport spots, 3 indoor scenic cameras, and an architectural floorplan on both the radar minimap and Full Map (`[M]`).
+
+### 2. Real-Time Traffic Segment Cycling & TSL Pedestrians
+* **Dynamic Per-Segment Traffic Gauge**: Individual road segments in Sejong and Seoul dynamically cycle across **Congested**, **Heavy**, **Normal**, and **Smooth** states, updating the HUD traffic gauge label, speed readout, and color indicator dot in real time.
+* **TSL Vertex-Shader Pedestrian Walk Cycle**: Pedestrians move smoothly along predefined city routes using GPU-driven TSL vertex shader walk-cycle animations.
+
+### 3. Time-of-Day Atmosphere & Dynamic TSL Weather
+* **4 Time Presets**: Sunset (`노을`), Midday (`한낮`), Twilight (`매직아워`), and Night (`야경`)—synchronizing sky domes, building interior glow, automated Sejong Government Complex lighting, and indoor museum skylight vs. gallery spotlight balance.
+* **4 Weather States (Outdoor)**: Clear, Fog, Light Rain (up to 18,000 TSL rain streaks + wet road SSR), and Downpour (up to 36,000 rain streaks + ground splash ripples + screen-space TSL lens raindrops). Outdoor weather is automatically suppressed inside the museum.
+
+## 🎮 Controls
+
+| Key | Action |
+|:----|:-------|
+| `W` `A` `S` `D` / Arrows | Move / Walk / Drive / Steer |
+| `Space` | Jump (on foot) / Ascend (Helicopter) |
+| `1` `2` `3` `4` | Switch travel mode: Walk / Taxi / Public Bike / Helicopter *(Museum locks to `1` Walk-Only)* |
+| `V` / `C` | Switch camera preset (Chase, Action, First-Person, Scenic Views) |
+| `M` | Toggle interactive Full Map / Museum Indoor Floorplan |
+| `Drag` / `Scroll` | Orbit camera / Zoom |
+| `B` | Horn (Taxi outdoors only) |
+| `N` | Toggle Web Audio soundscape |
+| `H` | Toggle HUD visibility |
+
+## 🛠️ Tech Stack
+* **3D Engine**: [Three.js](https://threejs.org/) (`r187`) — `WebGPURenderer` + `TSL (Three Shading Language)` with automatic `WebGL2Backend` fallback
+* **Runtime & Build**: Node.js (v20+), Express, Vite, TypeScript, Tailwind CSS
+* **Testing**: Built-in Node.js test runner (`node:test`) covering city configuration, museum walk-only enforcement, traffic segment cycling, Sejong lighting, camera math, collisions, and weather presets
+
+## 🚀 Getting Started
+
 ```bash
-# 저장소 클론 후 의존성 설치
+# Install dependencies
 npm install
 
-# 개발 서버 시작 (http://localhost:3000)
+# Start development server (http://localhost:3000)
+npm run dev
+
+# Build for production
+npm run build
+
+# Run unit tests
+npm test
+```
+
+## 📜 Credits & License
+* **Base Engine**: Remixed from [mrdoob/slop-newyork](https://github.com/mrdoob/slop-newyork) by Ricardo Cabello (`@mrdoob`), under the [MIT License](LICENSE).
+* **Geographic References**: NYC Open Data, OpenStreetMap contributors (ODbL), and Korean urban/cultural landmark references (Sejong, Seoul, National Museum of Korea).
+
+---
+
+<a id="한국어"></a>
+# 🇰🇷 한국어 안내 (Korean Documentation)
+
+> 한국어 단독 문서로 보시려면 [README.ko.md](README.ko.md)를 참고하세요.
+
+## ✨ 주요 기능
+
+### 1. 3개의 독립된 공간 전환 (좌측 LNB 내비게이션)
+좌측 세로형 **LNB(Left Navigation Bar)** 및 전체 지도(`[M]`)에서 서로 완전히 분리된 3개 공간을 즉시 전환할 수 있습니다.
+
+* **세종특별자치시 (`세종시`)**:
+  * **정부세종청사 특화 건축**: 길게 이어진 다동 청사와 연속 옥상정원, 공중 연결브릿지(Skybridge) 및 시간대에 따라 주간 자연광 반사 / 야간 사무실 조명을 자동 전환하는 **자동 조명 시스템** 구현.
+  * **세종 주요 랜드마크**: 국립세종도서관(펼쳐진 책 곡면 지붕), 대통령기록관, 국무총리실, 세종특별자치시청(원형 아크 청사), 세종호수공원.
+  * **관공서 중심 도로망**: 한누리대로(BRT), 다솜로, 절재로, 도움3·6·8로, 갈매로, 시청대로.
+* **서울특별시 테헤란로 (`서울시`)**:
+  * **강남 핵심 도로망**: 테헤란로, 강남대로, 논현로, 언주로, 선릉로, 삼성로, 영동대로.
+  * **주요 랜드마크**: 강남파이낸스센터(GFC), 한국종합무역센터, 코엑스 & K-POP 스퀘어, 파르나스타워, GT타워, 포스코센터, 선정릉.
+  * **실사 거리 디테일**: 한국 도로명 표지판, 서울 지하철 2호선 출입구 폴사인, 실사 상가 텍스처(스타벅스, 올리브영, 파리바게뜨, 투썸플레이스, GS25), 서울 택시·따릉이·시내버스.
+* **국립중앙박물관 실내 (`국립박물관 · 도보 전용`)**:
+  * **엄격한 도보 전용(Walk-Only) 모드**: 박물관 실내에서는 오직 **도보(`person`)** 이동만 허용됩니다. 차량·자전거·헬기 버튼은 숨김 및 비활성화되며, 키보드 단축키(`2`/`3`/`4`), 경적(`B`), 게임패드 모드 전환까지 모두 차단됩니다.
+  * **실내 전시 공간 구성**:
+    * **으뜸홀 · 중앙 로비**: 연마 화강암 바닥, 석회암 벽체, 안내 데스크, 휴게 벤치, 남측 유리 커튼월.
+    * **역사의 길**: 대형 열주(Colonnade), 2층 유리 난간 메자닌, 목재 천창 루버, 전시 배너.
+    * **경천사지 십층석탑 광장**: 13.5m 다층 대리석 석탑 조형물과 유리 보호 난간 및 건축 스포트라이트.
+    * **사유의 방**: 어두운 명상 전시실, 별빛 핀조명 천장, 국보 제78호·제83호 **금동미륵보살반가사유상** 2점.
+    * **국보 유물 진열장**: 황남대총 신라 금관, 백제 금동대향로, 고려 청자 상감운학문 매병, 조선 백자 달항아리, 금동여래입상, 청화백자 항아리.
+  * **실내 관람 편의 기능**: 관람객 AI 보행, 실내 벽면·기둥·진열장 충돌 처리, 실내 카메라 천장/벽면 클램핑, 실내 텔레포트 5곳, 실내 시점 카메라 3종, 미니맵·전체 지도(`[M]`) 전용 박물관 평면도 제공.
+
+### 2. 실시간 구간별 교통 혼잡도 순환 & TSL 보행자 애니메이션
+* **구간별 교통량 실시간 변화**: 세종·서울 각 도로 구간이 **Congested(정체) · Heavy(서행) · Normal(보통) · Smooth(원활)** 상태를 동적으로 순환하며, 상단 HUD 교통 라벨·속도·색상 도트가 실시간으로 갱신됩니다. (박물관 실내에서는 현재 전시 구역 및 `도보 전용 (Walk Only)` 상태 표시)
+* **TSL 버텍스 셰이더 보행 애니메이션**: 보행자들이 사전 정의된 보행 경로를 따라 GPU TSL 버텍스 셰이더 기반 걷기 사이클로 부드럽게 이동합니다.
+
+### 3. 시간대별 분위기 & TSL 동적 날씨 시스템
+* **4가지 시간대**: 노을(Sunset), 한낮(Midday), 매직아워(Twilight), 야경(Night) — 실외 하늘/조명, 정부세종청사 자동 조명, 박물관 천창 채광 및 전시 스포트라이트까지 연동.
+* **4가지 날씨(실외 전용)**: 맑음(Clear), 안개(Fog), 비(Light Rain), 폭우(Downpour) — TSL 빗줄기 파티클, 젖은 도로 반사(SSR), 화면 렌즈 물방울 셰이더 지원 (박물관 실내 진입 시 자동 비활성화).
+
+## 🎮 조작 방법
+
+| 키 | 동작 |
+|:---|:-----|
+| `W` `A` `S` `D` / 방향키 | 걷기 / 주행 / 방향 전환 |
+| `Space` | 점프 (도보) / 상승 (헬기) |
+| `1` `2` `3` `4` | 이동 수단 전환: 도보 / 택시 / 공공자전거 / 헬기 *(박물관 실내는 `1` 도보 전용 고정)* |
+| `V` / `C` | 카메라 시점 전환 (3인칭 추적, 액션, 1인칭, 명소 뷰) |
+| `M` | 전체 지도 / 박물관 실내 평면도 열기·닫기 |
+| `드래그` / `스크롤` | 시점 회전 / 줌 |
+| `B` | 경적 (실외 택시 전용) |
+| `N` | 사운드 켜기·끄기 |
+| `H` | HUD 숨기기·보이기 |
+
+## 🚀 설치 및 실행
+
+```bash
+# 의존성 설치
+npm install
+
+# 개발 서버 실행 (http://localhost:3000)
 npm run dev
 
 # 프로덕션 빌드
@@ -129,12 +175,5 @@ npm run build
 npm test
 ```
 
----
-
-## 📜 크레딧 및 라이선스 (Credits & License)
-
-* **기반 소스코드 (Base Engine)**:
-  * 본 프로젝트는 Ricardo Cabello([@mrdoob](https://github.com/mrdoob))의 [slop-newyork](https://github.com/mrdoob/slop-newyork) 소스코드를 기반으로 테헤란로 배경 및 한국어 실사 디테일로 재구성(Remix)되었습니다.
-  * 원작 라이선스: [MIT License](LICENSE)
-* **도시 지리 데이터**:
-  * NYC Open Data, MTA, OpenStreetMap 기여자(ODbL) 및 서울 오픈 데이터 레퍼런스.
+## 📜 크레딧 및 라이선스
+* **기반 엔진**: Ricardo Cabello([@mrdoob](https://github.com/mrdoob))의 [slop-newyork](https://github.com/mrdoob/slop-newyork)을 기반으로 세종시·서울 테헤란로·국립중앙박물관 실내를 확장·재구성했습니다. ([MIT License](LICENSE))

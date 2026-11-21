@@ -50,6 +50,8 @@
   <link rel="modulepreload" href="./js/landmarks.js" />
   <link rel="modulepreload" href="./js/sejong-lighting.js" />
   <link rel="modulepreload" href="./js/sejong-landmarks.js" />
+  <link rel="modulepreload" href="./js/museum-config.js" />
+  <link rel="modulepreload" href="./js/museum-interior.js" />
   <link rel="modulepreload" href="./js/street-details.js" />
   <link rel="modulepreload" href="./js/street-props.js" />
   <link rel="modulepreload" href="./js/subway-geodata.js" />
@@ -117,6 +119,7 @@
       <symbol id="i-cloud-downpour" viewBox="0 0 24 24"><path d="M4 13.8A4.2 4.2 0 0 1 7.8 9a5.5 5.5 0 0 1 10.4 1.5 3.8 3.8 0 0 1 1.8 7.3H4.5"/><path d="m7 16.5-2 5M11 16.5-2 5M15 16.5-2 5M19 16.5-2 5"/></symbol>
       <symbol id="i-city-sejong" viewBox="0 0 24 24"><path d="M3 20.5h18M4.5 20.5V10.5l7.5-4.8 7.5 4.8v10M8.5 20.5v-5.5h7v5.5M9 11.5h1.5M13.5 11.5H15"/></symbol>
       <symbol id="i-city-seoul" viewBox="0 0 24 24"><path d="M3 20.5h18M5.5 20.5V9.5h4.5v11M10 20.5V4.5l4-1.5v17.5M14 20.5v-8h4.5v8M12 6.5v1.5M12 10.5v1.5"/></symbol>
+      <symbol id="i-city-museum" viewBox="0 0 24 24"><path d="M2.5 20.5h19M3.5 9.5h17L12 4.2 3.5 9.5ZM6 9.5v11M10 9.5v11M14 9.5v11M18 9.5v11"/></symbol>
     </defs>
   </svg>
 
@@ -151,13 +154,16 @@
   <aside class="hud hud-left" aria-label="주 내비게이션 (LNB)">
     <nav id="hud-toolbar" class="panel toolbar toolbar-lnb" aria-label="도시 환경 및 이동 메뉴">
       <div class="lnb-section lnb-city-section">
-        <span class="lnb-heading">도시 선택</span>
-        <div class="city-switch" role="group" aria-label="도시 선택 (세종시 · 서울시)">
+        <span class="lnb-heading">공간 선택</span>
+        <div class="city-switch" role="group" aria-label="공간 선택 (세종시 · 서울시 · 국립중앙박물관 실내)">
           <button id="city-sejong" class="city-btn active" data-city="sejong" type="button" title="세종특별자치시 보기 (정부세종청사 · 한누리대로)">
             <svg class="icon" aria-hidden="true"><use href="#i-city-sejong"/></svg><span class="seg-label">세종시</span>
           </button>
           <button id="city-seoul" class="city-btn" data-city="seoul" type="button" title="서울특별시 보기 (강남 테헤란로 · 코엑스)">
             <svg class="icon" aria-hidden="true"><use href="#i-city-seoul"/></svg><span class="seg-label">서울시</span>
+          </button>
+          <button id="city-museum" class="city-btn city-btn-wide" data-city="museum" type="button" title="국립중앙박물관 실내 관람 (도보 전용)">
+            <svg class="icon" aria-hidden="true"><use href="#i-city-museum"/></svg><span class="seg-label">국립중앙박물관 · 도보</span>
           </button>
         </div>
       </div>
@@ -179,8 +185,8 @@
           </button>
         </div>
       </div>
-      <span class="toolbar-divider" aria-hidden="true"></span>
-      <div class="lnb-section">
+      <span class="toolbar-divider lnb-weather-divider" aria-hidden="true"></span>
+      <div class="lnb-section lnb-weather-section">
         <span class="lnb-heading">날씨</span>
         <div class="weather-switch" role="group" aria-label="실시간 날씨 선택">
           <button id="weather-clear" class="weather-btn active" data-weather="clear" type="button" title="맑음 (Clear Sky)">
@@ -238,6 +244,14 @@
       <button id="tp-bryant" class="pop-item tp-btn" data-teleport="bryant" type="button"><span class="pop-name">선릉역 벤처밸리</span><span class="pop-sub">선릉역 · 테헤란 IT타운</span></button>
       <button id="tp-flatiron" class="pop-item tp-btn" data-teleport="flatiron" type="button"><span class="pop-name">강남역 사거리</span><span class="pop-sub">강남대로 &amp; 테헤란로 교차로</span></button>
       <button id="tp-owtc" class="pop-item tp-btn" data-teleport="owtc" type="button"><span class="pop-name">한강 · 탄천 워터프론트</span><span class="pop-sub">수변공원 &amp; 전망 타워</span></button>
+    </div>
+    <div class="pop-group" data-city-group="museum">
+      <div class="pop-title">국립중앙박물관 실내 (도보 전용)</div>
+      <button id="tp-museum-lobby" class="pop-item tp-btn" data-teleport="museum_lobby" type="button"><span class="pop-name">으뜸홀 · 중앙 로비</span><span class="pop-sub">1F 남측 출입구 · 역사의 길 시작점</span></button>
+      <button id="tp-museum-path" class="pop-item tp-btn" data-teleport="museum_path" type="button"><span class="pop-name">역사의 길 (Path of History)</span><span class="pop-sub">1F 중앙 아트리움 · 전시 회랑</span></button>
+      <button id="tp-museum-pagoda" class="pop-item tp-btn" data-teleport="museum_pagoda" type="button"><span class="pop-name">경천사지 십층석탑 광장</span><span class="pop-sub">1F 북단 아트리움 · 국보 석탑</span></button>
+      <button id="tp-museum-contemplation" class="pop-item tp-btn" data-teleport="museum_contemplation" type="button"><span class="pop-name">사유의 방 (반가사유상)</span><span class="pop-sub">1F 동관 명상실 · 국보 78호·83호</span></button>
+      <button id="tp-museum-craft" class="pop-item tp-btn" data-teleport="museum_craft" type="button"><span class="pop-name">신라 금관 · 고려 청자 회랑</span><span class="pop-sub">1F 서측 명품 진열장</span></button>
     </div>
     <div class="pop-divider" aria-hidden="true"></div>
     <button id="tp-switch-city" class="pop-item pop-switch-city" type="button"><span class="pop-name">서울시 랜드마크로 전환 →</span><span class="pop-sub">강남 테헤란로 · 코엑스</span></button>
@@ -345,6 +359,12 @@
       <button id="cam-waterfront" class="pop-item cam-btn" data-camera="waterfront" type="button"><span class="pop-name">한강 · 탄천 워터프론트</span></button>
       <button id="cam-drone" class="pop-item cam-btn" data-camera="drone" type="button"><span class="pop-name">서울 테헤란로 드론 뷰</span></button>
     </div>
+    <div class="pop-group" data-city-group="museum">
+      <div class="pop-title">국립중앙박물관 실내 시점</div>
+      <button id="cam-museumAtrium" class="pop-item cam-btn" data-camera="museumAtrium" type="button"><span class="pop-name">역사의 길 · 중앙 홀 전경</span><kbd>8</kbd></button>
+      <button id="cam-museumPagoda" class="pop-item cam-btn" data-camera="museumPagoda" type="button"><span class="pop-name">경천사지 십층석탑 전경</span><kbd>9</kbd></button>
+      <button id="cam-museumContemplation" class="pop-item cam-btn" data-camera="museumContemplation" type="button"><span class="pop-name">사유의 방 · 반가사유상</span><kbd>0</kbd></button>
+    </div>
   </div>
 
   <!-- Full-Screen Interactive Sejong City & Seoul Teheran-ro Street Map ([M]) -->
@@ -361,9 +381,10 @@
           <p id="fullmap-player-info" class="fullmap-subtitle">세종특별자치시 · 현재 위치: 다솜로 · 한누리대로</p>
         </div>
       </div>
-      <div class="panel fullmap-city-switch" role="group" aria-label="지도 도시 영역 선택">
+      <div class="panel fullmap-city-switch" role="group" aria-label="지도 공간 영역 선택">
         <button id="fullmap-city-sejong" class="fullmap-city-btn active" data-map-city="sejong" type="button">세종시</button>
         <button id="fullmap-city-seoul" class="fullmap-city-btn" data-map-city="seoul" type="button">서울시</button>
+        <button id="fullmap-city-museum" class="fullmap-city-btn" data-map-city="museum" type="button">국립박물관</button>
       </div>
       <label class="panel fullmap-search-wrap">
         <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
